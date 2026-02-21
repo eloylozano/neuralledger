@@ -1,12 +1,12 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 class InvoiceItem(BaseModel):
     position: int
-    descripcion: str
+    description: str
     quantity: int 
     price: float
-    tax: float
+    ia_notes: Optional[float] = 0.0
     discount: float
     total_item: float
 
@@ -19,4 +19,6 @@ class InvoiceResponse(BaseModel):
     vat: float
     discount: float
     total: float
+    ia_notes: Optional[str] = ""
     items: List[InvoiceItem]
+    
