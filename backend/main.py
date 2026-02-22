@@ -1,9 +1,11 @@
 import os
 import shutil
 import re
+import time
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import OperationalError
 from typing import Optional
 
 # Importaciones de tus archivos
@@ -12,15 +14,31 @@ import models
 import schemas
 from utils.processor import process_pdf_to_json
 
-# Creamos las tablas
-models.Base.metadata.create_all(bind=engine)
+# --- LÓGICA DE INICIALIZACIÓN ROBUSTA ---
+def init_db():
+    """Intenta crear las tablas con reintentos si la DB no está lista"""
+    retries = 15
+    while retries > 0:
+        try:
+            print("Intentando conectar a la base de datos...")
+            models.Base.metadata.create_all(bind=engine)
+            print("¡Tablas creadas/verificadas con éxito!")
+            return
+        except OperationalError as e:
+            retries -= 1
+            print(f"Base de datos no lista (quedan {retries} intentos). Esperando 3s...")
+            time.sleep(3)
+    print("Error crítico: No se pudo conectar a la base de datos.")
+
+# Llamamos a la creación de tablas con seguridad
+init_db()
 
 app = FastAPI(title="NeuralLedger API")
 
-# --- CONFIGURACIÓN CORS (Crucial para Svelte) ---
+# --- CONFIGURACIÓN CORS ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # En producción cambia esto a la URL de tu front
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,12 +48,8 @@ UPLOAD_DIR = "storage"
 if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR)
 
-# ... (imports y config iguales) ...
-
 @app.post("/process-invoice/")
 async def upload_invoice(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    # CAMBIO AQUÍ: Guardamos el archivo con un nombre fijo temporal
-    # Esto evita tener 20 archivos sueltos si el usuario no termina de guardar
     temp_filename = "temp_processing.pdf"
     file_path = os.path.join(UPLOAD_DIR, temp_filename)
     
@@ -65,7 +79,7 @@ async def upload_invoice(file: UploadFile = File(...), db: Session = Depends(get
 
 @app.post("/save-invoice/")
 async def save_invoice(data: schemas.InvoiceResponse, db: Session = Depends(get_db)):
-    # 1. Manejo de Proveedor (igual)
+    # 1. Manejo de Proveedor
     db_supplier = db.query(models.Supplier).filter(models.Supplier.cif == data.supplier_cif).first()
     
     if not db_supplier:
@@ -83,7 +97,7 @@ async def save_invoice(data: schemas.InvoiceResponse, db: Session = Depends(get_
             db_supplier.ia_notes = data.ia_notes
             db.add(db_supplier)
 
-    # 2. Crear Carpeta: NombreEmpresa_CIF
+    # 2. Carpeta de archivos
     clean_name = re.sub(r'[^a-zA-Z0-9]', '', data.supplier_name)
     folder_name = f"{clean_name}_{data.supplier_cif}"
     supplier_dir = os.path.join(UPLOAD_DIR, folder_name)
@@ -91,31 +105,22 @@ async def save_invoice(data: schemas.InvoiceResponse, db: Session = Depends(get_
     if not os.path.exists(supplier_dir):
         os.makedirs(supplier_dir)
 
-    # 3. Nombre final del PDF
+    # 3. Nombre final PDF
     clean_inv_num = data.invoice_num.replace("/", "-").replace(" ", "_")
     final_filename = f"Factura_{clean_inv_num}.pdf"
     final_pdf_path = os.path.join(supplier_dir, final_filename)
 
-    # 4. MOVIMIENTO REAL DEL ARCHIVO
+    # 4. Movimiento del archivo
     temp_path = os.path.join(UPLOAD_DIR, "temp_processing.pdf") 
     
-    # Caso A: El archivo es nuevo y está en la carpeta temporal
     if os.path.exists(temp_path):
         shutil.move(temp_path, final_pdf_path)
-    
-    # Caso B: El archivo NO está en temporal, pero YA está en su carpeta final
-    # (Esto pasa si estás re-guardando o si hubo un intento previo exitoso)
     elif os.path.exists(final_pdf_path):
-        print(f"El archivo ya existía en {final_pdf_path}, continuamos...")
-    
-    # Caso C: No está en ningún lado
+        pass # Ya estaba allí
     else:
-        raise HTTPException(
-            status_code=404, 
-            detail="No se encontró el archivo PDF ni en temporal ni en la carpeta del proveedor."
-        )
+        raise HTTPException(status_code=404, detail="Archivo PDF no encontrado.")
     
-    # 5. Guardar en DB (con la ruta final real)
+    # 5. Guardar Factura
     new_invoice = models.Invoice(
         invoice_num=data.invoice_num,
         date_str=data.date,
@@ -130,19 +135,15 @@ async def save_invoice(data: schemas.InvoiceResponse, db: Session = Depends(get_
     db.commit()
     db.refresh(new_invoice)
 
-    # 6. Items 
+    # 6. Items (Lineas de factura)
     for item in data.items:
-        # Convertimos el item a diccionario
         item_data = item.model_dump()
         
-        # --- Lógica de Seguridad para 'tax' ---
-        # Si la IA mandó 'ia_notes' en vez de 'tax', lo rescatamos.
-        # Si no mandó ninguno, ponemos 0.0
+        # Lógica de seguridad para impuestos
         tax_value = item_data.get('tax') 
         if tax_value is None:
             tax_value = item_data.get('ia_notes', 0.0)
 
-        # Creamos el objeto de base de datos
         db_item = models.InvoiceLine(
             position=item_data.get('position'),
             description=item_data.get('description'),
@@ -161,10 +162,7 @@ async def save_invoice(data: schemas.InvoiceResponse, db: Session = Depends(get_
         "message": "Factura guardada correctamente",
         "pdf_location": final_pdf_path
     }
-    
-# Endpoint actualizado para incluir el proveedor en el listado
+
 @app.get("/invoices/")
 async def list_invoices(db: Session = Depends(get_db)):
-    # Usamos joinedload para traer los datos del proveedor en la misma consulta
-    from sqlalchemy.orm import joinedload
     return db.query(models.Invoice).options(joinedload(models.Invoice.supplier)).all()

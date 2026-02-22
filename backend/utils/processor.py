@@ -13,25 +13,37 @@ async def process_pdf_to_json(file_content: bytes) -> InvoiceResponse:
     doc = fitz.open(stream=file_content, filetype="pdf")
     text = chr(12).join([page.get_text() for page in doc]) # chr(12) es salto de página
 
-    # 2. Prompt ultra-específico basado en tus Schemas
+    # 2. Prompt ultra-específico refinado para detección de columnas
     prompt = f"""
-    Eres un extractor de datos contables de alta precisión. Analiza el texto de la factura y sigue estos pasos:
-    
-    1. Identifica al emisor y su CIF (busca patrones como B12345678). Ignora emails o webs.
-    2. Lista los artículos. Si el precio es 0, busca si es un regalo o descuento.
-    3. Verifica los totales: (Base Imponible + IVA - Descuento) debe ser igual al Total.
-    
+    Eres un extractor de datos contables de alta precisión y auditor de facturas. Tu objetivo es mapear el texto a un JSON estructurado y detectar discrepancias.
+
+    REGLAS DE ORO PARA COLUMNAS:
+    1. El primer número de la fila suele ser la CANTIDAD (quantity).
+    2. El texto central es la DESCRIPCIÓN (description).
+    3. El número a la derecha de la descripción es el PRECIO UNITARIO (price).
+    4. El último número de la fila es el TOTAL DE LÍNEA (total_item).
+
+    LÓGICA DE AUDITORÍA CRÍTICA:
+    - Compara: (taxable_base + vat - discount) vs total.
+    - Si hay discrepancias o falta información clave (como el CIF), REDACTA un aviso breve y directo en `ia_notes`.
+    - NO uses frases como "Se debe indicar" o "He encontrado". 
+    - USA mensajes directos: "Falta el CIF del proveedor", "El total no coincide con la suma de los conceptos".
+
+    PASOS DE PROCESAMIENTO:
+    - Identifica al emisor y su CIF. Si no hay CIF, indícalo en `ia_notes`.
+    - Extrae la fecha en formato DD/MM/YYYY.
+    - Para cada item: Verifica que (quantity * price) ≈ total_item.
+
     REGLAS DE FORMATO:
-    - `date`: Siempre DD/MM/YYYY.
-    - `supplier_cif`: SOLO el código alfanumérico limpio sin simbolos.
-    - `items`: La `tax` por item debe ser el porcentaje o el importe del impuesto de esa línea.
-    - Solo devuelve el JSON, sin texto extra.
+    - `supplier_cif`: Sin espacios ni guiones.
+    - `tax`: Porcentaje de IVA (ej. 21.0).
+    - Solo devuelve el JSON puro, sin bloques de código ni texto adicional.
 
     FORMATO REQUERIDO:
     {{
         "supplier_name": "Nombre",
         "supplier_cif": "CIF",
-        "ia_notes": "Cualquier anomalía o patrón detectado en esta factura",
+        "ia_notes": "Aquí escribe cualquier error de cálculo, falta de CIF o anomalía detectada",
         "date": "DD/MM/YYYY",
         "invoice_num": "000",
         "taxable_base": 0.0,
@@ -42,7 +54,7 @@ async def process_pdf_to_json(file_content: bytes) -> InvoiceResponse:
             {{
                 "position": 1,
                 "description": "Producto",
-                "quantity": 1,
+                "quantity": 0.0,
                 "price": 0.0,
                 "tax": 0.0,
                 "discount": 0.0,
@@ -50,15 +62,17 @@ async def process_pdf_to_json(file_content: bytes) -> InvoiceResponse:
             }}
         ]
     }}
-    
-    TEXTO:
+
+    TEXTO DE LA FACTURA:
+    \"\"\"
     {text}
+    \"\"\"
     """
 
     # 3. Llamada a Ollama
     async with httpx.AsyncClient() as client:
         response = await client.post(OLLAMA_URL, json={
-            "model": "llama3.2:3b",
+            "model": "deepseek-r1:8b",
             "prompt": prompt,
             "stream": False,
             "format": "json"
