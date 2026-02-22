@@ -1,6 +1,7 @@
 import os
 import shutil
 import re
+import uuid
 import time
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,7 +51,9 @@ if not os.path.exists(UPLOAD_DIR):
 
 @app.post("/process-invoice/")
 async def upload_invoice(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    temp_filename = "temp_processing.pdf"
+    # Generamos un nombre único: ej. "a1b2-c3d4...pdf"
+    file_id = str(uuid.uuid4())
+    temp_filename = f"{file_id}.pdf"
     file_path = os.path.join(UPLOAD_DIR, temp_filename)
     
     with open(file_path, "wb") as buffer:
@@ -68,14 +71,13 @@ async def upload_invoice(file: UploadFile = File(...), db: Session = Depends(get
         
         return {
             "extracted": extracted_data,
+            "temp_file": temp_filename, 
             "db_supplier": db_supplier,
             "is_new_supplier": db_supplier is None
         }
-
     except Exception as e:
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        raise HTTPException(status_code=500, detail=f"Error al procesar: {str(e)}")
+        if os.path.exists(file_path): os.remove(file_path)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/save-invoice/")
 async def save_invoice(data: schemas.InvoiceResponse, db: Session = Depends(get_db)):
@@ -110,8 +112,8 @@ async def save_invoice(data: schemas.InvoiceResponse, db: Session = Depends(get_
     final_filename = f"Factura_{clean_inv_num}.pdf"
     final_pdf_path = os.path.join(supplier_dir, final_filename)
 
-    # 4. Movimiento del archivo
-    temp_path = os.path.join(UPLOAD_DIR, "temp_processing.pdf") 
+    # 4. Movimiento del archivo usando el nombre único que viene del Front
+    temp_path = os.path.join(UPLOAD_DIR, data.temp_file) 
     
     if os.path.exists(temp_path):
         shutil.move(temp_path, final_pdf_path)
