@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+:root {
+	--primary: #00d2ff;
+	--secondary: #3a7bd5;
+	--bg-main: #0f172a;
+	/* Nuevas variables para el texto */
+	--text-main: #ffffff;
+	--text-muted: rgba(255, 255, 255, 0.6);
+  }
+  
+  body {
+	background-color: var(--bg-main);
+	color: var(--text-main); /* <--- Ahora el body usa la variable */
+	min-height: 100vh;
+	font-family: 'Inter', sans-serif;
+	margin: 0;
+	transition: background 0.5s ease, color 0.5s ease; /* Transición suave para ambos */
+	
+	background-image: 
+	  radial-gradient(at 0% 0%, var(--primary) 0%, transparent 40%),
+	  radial-gradient(at 100% 100%, var(--secondary) 0%, transparent 40%);
+	background-attachment: fixed;
+  }
+  
+  /* Asegúrate de que los enlaces y textos secundarios también usen variables */
+  .nav-item {
+	color: var(--text-muted);
+  }
+  
+  .nav-item:hover {
+	color: var(--text-main);
+  }
