@@ -168,3 +168,5 @@ async def save_invoice(data: schemas.InvoiceResponse, db: Session = Depends(get_
 @app.get("/invoices/")
 async def list_invoices(db: Session = Depends(get_db)):
     return db.query(models.Invoice).options(joinedload(models.Invoice.supplier)).all()
+
+# uvicorn main:app --reload --host 0.0.0.0 --port 8000
