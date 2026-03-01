@@ -1,18 +1,30 @@
 <script>
   import Dropzone from "$lib/components/Dropzone.svelte";
+  import InvoiceEditor from "$lib/components/InvoiceEditor.svelte";
   import LoadingBar from "$lib/components/LoadingBar.svelte";
   import { fade, fly } from "svelte/transition";
+  import { onDestroy } from "svelte"; // Importante para la memoria
 
   let status = $state("idle");
   let uploadProgress = $state(0);
   let fileName = $state("");
+  let fileUrl = $state(""); // Aquí guardaremos la URL del PDF
 
   function handleFile(file) {
     fileName = file.name;
+
+    // 1. CREAR LA URL DEL BLOB
+    // Esto crea una dirección tipo "blob:http://localhost:5173/..."
+    fileUrl = URL.createObjectURL(file);
+
     status = "loading";
     simulateUpload();
   }
 
+  // Limpieza de memoria: cuando cambies de página, borramos la URL temporal
+  onDestroy(() => {
+    if (fileUrl) URL.revokeObjectURL(fileUrl);
+  });
   function simulateUpload() {
     uploadProgress = 0;
     const interval = setInterval(() => {
@@ -26,48 +38,63 @@
       }
     }, 400);
   }
+  let mockData = $state({
+    supplier_name: "Amazon Web Services EMEA SARL",
+    supplier_cif: "LU26375245",
+    ia_notes:
+      "CIF extraído de metadatos del pie de página. Advertencia: Se detectó una discrepancia de 0.01€ en el redondeo del IVA respecto al total calculado. Se recomienda revisar la posición 2.",
+    date: "2024-02-15",
+    invoice_num: "EU-1234567-2024",
+    taxable_base: 120.5,
+    vat: 25.31,
+    total: 145.81,
+    items: [
+      {
+        position: 1,
+        description: "AWS Compute Service (EC2) - Region: Ireland",
+        quantity: 1,
+        price: 100.0,
+        tax: 21.0,
+        total_item: 121.0,
+      },
+      {
+        position: 2,
+        description: "Cloudwatch Logs Storage & Data Transfer",
+        quantity: 1,
+        price: 20.5,
+        tax: 21.0,
+        total_item: 24.81,
+      },
+    ],
+  });
 </script>
 
 <svelte:head>
   <title>NeuralLedger | Subir Factura</title>
 </svelte:head>
-
-<div class="upload-page-container">
+<div class="upload-page-container {status === 'editing' ? 'is-editing' : ''}">
   <div class="upload-content">
     <header class="text-center">
-      <h1 in:fly={{ y: -20, duration: 500 }}>
-        Procesar <span>Nueva Factura</span>
-      </h1>
-      <p in:fly={{ y: -10, duration: 500, delay: 200 }}>
-        Sube tu documento en PDF y deja que la IA extraiga los datos por ti.
-      </p>
+      <h1>Procesar <span>Nueva Factura</span></h1>
+      <p>Análisis inteligente de documentos con DeepSeek IA</p>
     </header>
 
     <div class="content-wrapper">
       {#if status === "idle"}
-        <div in:fade={{ duration: 300 }} out:fade={{ duration: 200 }}>
-          <Dropzone onFileSelect={handleFile} />
-        </div>
+        <div in:fade><Dropzone onFileSelect={handleFile} /></div>
       {:else if status === "loading"}
-        <div in:fade={{ duration: 300 }} out:fade={{ duration: 200 }}>
-          <LoadingBar
-            progress={uploadProgress}
-            status="DeepSeek está analizando {fileName}..."
-          />
-        </div>
+        <div in:fade><LoadingBar progress={uploadProgress} /></div>
       {:else if status === "editing"}
-        <div
-          in:fly={{ y: 20, duration: 600 }}
-          class="editor-placeholder glass-card"
-        >
-          <h2>🎉 ¡Factura Procesada!</h2>
-          <p>
-            Aquí irá el componente <strong>InvoiceEditor.svelte</strong> con la vista
-            dividida.
-          </p>
-          <button onclick={() => (status = "idle")} class="reset-btn"
-            >Subir otra</button
-          >
+        <div class="full-width-editor" in:fly={{ y: 20, duration: 500 }}>
+          <InvoiceEditor
+            data={mockData}
+            {fileUrl}
+            onSave={(d) => console.log(d)}
+            onCancel={() => {
+              status = "idle";
+              fileUrl = ""; // Limpiamos al cancelar
+            }}
+          />
         </div>
       {/if}
     </div>
@@ -75,69 +102,40 @@
 </div>
 
 <style>
-  /* Contenedor que ocupa todo el espacio disponible */
   .upload-page-container {
-    height: 100%; /* Toma el alto del main-content del layout */
+    height: 100%;
     display: flex;
-    align-items: center; /* Centrado vertical */
-    justify-content: center; /* Centrado horizontal */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.5s ease;
+  }
+
+  /* Cuando editamos, permitimos que el contenido sea más ancho */
+  .upload-page-container.is-editing .upload-content {
+    max-width: 1400px;
+    padding-top: 2rem;
   }
 
   .upload-content {
     width: 100%;
-    max-width: 900px;
-    padding-bottom: 5rem; /* Pequeño offset para que no se vea "tan abajo" visualmente */
+    max-width: 800px; /* Ancho normal para dropzone */
+    transition: max-width 0.5s ease;
   }
 
   header h1 {
-    font-size: 3rem; /* Un poco más grande para llenar el espacio */
-    margin-bottom: 0.75rem;
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
   }
-
   header h1 span {
     color: var(--primary);
   }
-
   header p {
-    font-size: 1.1rem;
     color: var(--text-muted);
   }
 
   .content-wrapper {
-    margin-top: 4rem;
+    margin-top: 3rem;
     width: 100%;
-    display: flex;
-    justify-content: center;
-  }
-
-  /* Ajustamos el ancho del wrapper para que los componentes internos decidan su tamaño */
-  .content-wrapper > div {
-    width: 100%;
-  }
-
-  .editor-placeholder {
-    padding: 4rem;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1.5rem;
-  }
-
-  .reset-btn {
-    padding: 0.8rem 2rem;
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: 12px;
-    color: var(--text-main);
-    cursor: pointer;
-    transition: 0.3s;
-  }
-
-  .reset-btn:hover {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-    box-shadow: 0 0 20px rgba(0, 210, 255, 0.3);
   }
 </style>
