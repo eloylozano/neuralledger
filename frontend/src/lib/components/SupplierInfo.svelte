@@ -1,22 +1,48 @@
 <script>
-  import { Building2, Tag, Calendar, Hash, Sparkles } from "lucide-svelte";
+  import { Building2, Tag, Calendar, Hash, Percent } from "lucide-svelte";
   import { fly } from "svelte/transition";
-  import NeuralInput from "./NeuralInput.svelte"; // Importamos el nuevo componente
+  import NeuralInput from "./NeuralInput.svelte";
 
   let { data = $bindable() } = $props();
+
+  // El IVA ahora es un valor único para toda la factura (por defecto 21)
+  let globalTax = $state(21);
+
+  $effect(() => {
+    if (data.items) {
+      // 1. Sumamos la base imponible de todos los artículos
+      const totalBase = data.items.reduce(
+        (acc, item) => acc + Number(item.quantity) * Number(item.price),
+        0
+      );
+
+      // 2. Calculamos el IVA sobre el total de la base
+      const totalVat = totalBase * (globalTax / 100);
+
+      // 3. Actualizamos los datos del objeto principal
+      data.taxable_base = totalBase.toFixed(2);
+      data.vat = totalVat.toFixed(2);
+      data.total = (totalBase + totalVat).toFixed(2);
+    }
+  });
 </script>
 
 <div class="glass-card info-global">
   <div class="column-header">
-    <span>Datos del Proveedor</span>
+    <span>Datos del Proveedor y Ajustes</span>
   </div>
 
-  {#if data.ia_notes}
+  {#if data.ia_notes !== undefined}
     <div class="ia-alert" in:fly={{ y: -10 }}>
       <div class="ia-alert-header">
-        <span>Auditoría Neural Ledger</span>
+        <span>Entrenamiento Neural Ledger</span>
       </div>
-      <p>{data.ia_notes}</p>
+      <textarea
+        bind:value={data.ia_notes}
+        class="ia-notes-editor"
+        placeholder="Escribe aquí instrucciones (ej: 'Busca siempre el envío que suele estar abajo a la derecha')"
+      >
+      </textarea>
     </div>
   {/if}
 
@@ -37,7 +63,14 @@
     />
 
     <NeuralInput
-      label="Fecha de Factura"
+      label="IVA Global %"
+      icon={Percent}
+      type="number"
+      bind:value={globalTax}
+    />
+
+    <NeuralInput
+      label="Fecha"
       icon={Calendar}
       type="date"
       bind:value={data.date}
@@ -47,8 +80,7 @@
       label="Nº Factura"
       icon={Hash}
       bind:value={data.invoice_num}
-      placeholder="FAC-0000"
-      isFull={true}
+      placeholder="0000"
     />
   </div>
 
@@ -56,6 +88,10 @@
     <div class="total-box">
       <span>Base Imponible</span>
       <p>{data.taxable_base}€</p>
+    </div>
+    <div class="total-box">
+      <span>IVA ({globalTax}%)</span>
+      <p>{data.vat}€</p>
     </div>
     <div class="total-box primary">
       <span>Total Factura</span>
@@ -83,6 +119,8 @@
     color: var(--text-muted);
     text-transform: uppercase;
   }
+
+  /* Estilos de la alerta de IA */
   .ia-alert {
     background: color-mix(in srgb, var(--primary), transparent 92%);
     border: 1px solid color-mix(in srgb, var(--primary), transparent 70%);
@@ -99,12 +137,24 @@
     letter-spacing: 1px;
     margin-bottom: 4px;
   }
-  .ia-alert p {
-    font-size: 0.85rem;
+  .ia-notes-editor {
+    width: 100%;
+    background: transparent;
+    border: 1px solid transparent;
     color: var(--text-main);
-    line-height: 1.4;
+    font-size: 0.85rem;
+    font-family: inherit;
+    resize: vertical;
+    padding: 4px;
+    border-radius: 4px;
+    outline: none;
+    transition: all 0.2s;
   }
 
+  .ia-notes-editor:focus {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--primary);
+  }
   .global-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -114,7 +164,7 @@
 
   .totals-summary {
     display: grid;
-    grid-template-columns: 1fr 1.2fr;
+    grid-template-columns: 1fr 1fr 1.2fr;
     gap: 1rem;
     margin-top: auto;
   }
@@ -137,6 +187,7 @@
     color: var(--primary);
     text-shadow: 0 0 15px color-mix(in srgb, var(--primary), transparent 60%);
   }
+
   .total-box span {
     font-size: 0.6rem;
     color: var(--text-muted);

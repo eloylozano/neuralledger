@@ -4,19 +4,21 @@ import re
 import uuid
 import time
 import logging
+import fitz 
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import OperationalError
-from typing import Optional
+from typing import Optional, List
 
-# Importaciones de tus archivos
+# Importaciones locales
 from database import engine, get_db
 import models
 import schemas
 from utils.processor import process_pdf_to_json
 
-# Configuración de logs para ver errores en la consola
+# 1. Inicialización y Configuración
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,7 @@ init_db()
 
 app = FastAPI(title="NeuralLedger API")
 
+# 2. Middlewares y Estáticos (IMPORTANTE: Después de definir 'app')
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -46,32 +49,44 @@ UPLOAD_DIR = "storage"
 if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR)
 
+# Servir la carpeta storage para que el Front pueda ver los PDFs
+app.mount("/storage", StaticFiles(directory=UPLOAD_DIR), name="storage")
+
+# 3. Endpoints
 @app.post("/process-invoice/")
 async def upload_invoice(file: UploadFile = File(...), db: Session = Depends(get_db)):
     file_id = str(uuid.uuid4())
     temp_filename = f"{file_id}.pdf"
     file_path = os.path.join(UPLOAD_DIR, temp_filename)
     
-    # 1. Guardar archivo
     try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    except Exception as e:
-        logger.error(f"Error guardando archivo: {e}")
-        raise HTTPException(status_code=500, detail=f"No se pudo guardar el PDF: {str(e)}")
-    
-    # 2. Procesar con IA
-    try:
-        with open(file_path, "rb") as f:
-            content = f.read()
+        content = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(content)
         
-        # Este es el punto más probable de fallo
-        extracted_data = await process_pdf_to_json(content)
-        
-        # Validamos que la IA devolvió algo
-        if not extracted_data:
-            raise ValueError("La IA no devolvió datos válidos")
+        doc = fitz.open(stream=content, filetype="pdf")
+        full_text = ""
+        for page in doc:
+            blocks = page.get_text("blocks")
+            blocks.sort(key=lambda b: (b[1], b[0]))
+            for b in blocks:
+                full_text += f"{b[4]}\n"
+        doc.close()
 
+        historical_context = ""
+        cif_pattern = r'([ABCDEFGHJKLMNPQSVW][\s\.\-]?\d{8})|(\d{8}[\s\.\-]?[TRWAGMYFPDXBNJZSQVHLCKE])'
+        cif_match = re.search(cif_pattern, full_text.upper())
+
+        if cif_match:
+            raw_cif = cif_match.group(0)
+            clean_cif = re.sub(r'[^A-Z0-9]', '', raw_cif)
+            db_supplier = db.query(models.Supplier).filter(models.Supplier.cif == clean_cif).first()
+            if db_supplier and db_supplier.ia_notes:
+                historical_context = db_supplier.ia_notes
+
+        extracted_data = await process_pdf_to_json(full_text, context=historical_context)
+        extracted_data.temp_file = temp_filename
+        
         db_supplier = db.query(models.Supplier).filter(
             models.Supplier.cif == extracted_data.supplier_cif
         ).first()
@@ -84,16 +99,12 @@ async def upload_invoice(file: UploadFile = File(...), db: Session = Depends(get
         }
 
     except Exception as e:
-        # Si algo falla, limpiamos el archivo temporal
         if os.path.exists(file_path): os.remove(file_path)
-        logger.error(f"Error en el procesamiento: {str(e)}")
-        # Forzamos que el error se vea en Swagger
-        raise HTTPException(status_code=500, detail=f"Error en IA/Procesamiento: {repr(e)}")
+        logger.error(f"Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# ... resto de funciones (save_invoice, list_invoices) se mantienen igual
 @app.post("/save-invoice/")
 async def save_invoice(data: schemas.InvoiceResponse, db: Session = Depends(get_db)):
-    # 1. Manejo de Proveedor
     db_supplier = db.query(models.Supplier).filter(models.Supplier.cif == data.supplier_cif).first()
     
     if not db_supplier:
@@ -109,32 +120,25 @@ async def save_invoice(data: schemas.InvoiceResponse, db: Session = Depends(get_
     else:
         if data.ia_notes:
             db_supplier.ia_notes = data.ia_notes
-            db.add(db_supplier)
 
-    # 2. Carpeta de archivos
+    # Crear ruta final: storage/Nombre_CIF/Factura_Num.pdf
     clean_name = re.sub(r'[^a-zA-Z0-9]', '', data.supplier_name)
     folder_name = f"{clean_name}_{data.supplier_cif}"
     supplier_dir = os.path.join(UPLOAD_DIR, folder_name)
-    
-    if not os.path.exists(supplier_dir):
-        os.makedirs(supplier_dir)
+    if not os.path.exists(supplier_dir): os.makedirs(supplier_dir)
 
-    # 3. Nombre final PDF
     clean_inv_num = data.invoice_num.replace("/", "-").replace(" ", "_")
     final_filename = f"Factura_{clean_inv_num}.pdf"
-    final_pdf_path = os.path.join(supplier_dir, final_filename)
+    
+    # Ruta para guardar en DB (usando slashes siempre para URL)
+    relative_pdf_path = f"storage/{folder_name}/{final_filename}"
+    # Ruta física en disco
+    absolute_pdf_path = os.path.join(supplier_dir, final_filename)
 
-    # 4. Movimiento del archivo usando el nombre único que viene del Front
     temp_path = os.path.join(UPLOAD_DIR, data.temp_file) 
-    
     if os.path.exists(temp_path):
-        shutil.move(temp_path, final_pdf_path)
-    elif os.path.exists(final_pdf_path):
-        pass # Ya estaba allí
-    else:
-        raise HTTPException(status_code=404, detail="Archivo PDF no encontrado.")
+        shutil.move(temp_path, absolute_pdf_path)
     
-    # 5. Guardar Factura
     new_invoice = models.Invoice(
         invoice_num=data.invoice_num,
         date_str=data.date,
@@ -143,42 +147,22 @@ async def save_invoice(data: schemas.InvoiceResponse, db: Session = Depends(get_
         discount=data.discount,
         total=data.total,
         supplier_id=db_supplier.id,
-        pdf_path=final_pdf_path 
+        pdf_path=relative_pdf_path 
     )
     db.add(new_invoice)
     db.commit()
     db.refresh(new_invoice)
 
-    # 6. Items (Lineas de factura)
     for item in data.items:
-        item_data = item.model_dump()
-        
-        # Lógica de seguridad para impuestos
-        tax_value = item_data.get('tax') 
-        if tax_value is None:
-            tax_value = item_data.get('ia_notes', 0.0)
-
         db_item = models.InvoiceLine(
-            position=item_data.get('position'),
-            description=item_data.get('description'),
-            quantity=item_data.get('quantity'),
-            price=item_data.get('price'),
-            tax=float(tax_value) if tax_value is not None else 0.0, 
-            discount=item_data.get('discount', 0.0),
-            total_item=item_data.get('total_item'),
+            **item.model_dump(),
             invoice_id=new_invoice.id
         )
         db.add(db_item)
     
     db.commit()
-    
-    return {
-        "message": "Factura guardada correctamente",
-        "pdf_location": final_pdf_path
-    }
+    return {"message": "Guardado", "pdf_path": relative_pdf_path}
 
 @app.get("/invoices/")
 async def list_invoices(db: Session = Depends(get_db)):
     return db.query(models.Invoice).options(joinedload(models.Invoice.supplier)).all()
-
-# uvicorn main:app --reload --host 0.0.0.0 --port 8000
