@@ -23,3 +23,15 @@ class InvoiceResponse(BaseModel):
     ia_notes: Optional[str] = ""
     items: List[InvoiceItem]
     temp_file: Optional[str] = None
+    
+class SupplierResponse(BaseModel):
+    id: int
+    name: str
+    cif: str
+    address: str
+    ia_notes: Optional[str] = None
+    invoice_count: int
+    total_spent: float
+
+    class Config:
+        from_attributes = True

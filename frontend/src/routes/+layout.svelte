@@ -117,9 +117,9 @@
         <Upload size={20} />
         <span>Subir Factura</span>
       </a>
-      <a href="/invoices" class="nav-item">
+      <a href="/database" class="nav-item">
         <Database size={20} />
-        <span>Histórico</span>
+        <span>Base de Datos</span>
       </a>
     </nav>
 
