@@ -1,7 +1,14 @@
-src/routes/
-├── +layout.svelte       <-- Menú lateral y diseño global
-├── +page.svelte         <-- Dashboard (Resumen)
-├── upload/
-│   └── +page.svelte     <-- Aquí va el "Drag & Drop" y el Editor
-└── invoices/
-    └── +page.svelte     <-- Listado tipo Drive (llama a GET /invoices/)
+src/
+├── lib/               # Componentes reutilizables (Botones, Cards, etc.)
+│   └── components/
+│       ├── GlassCard.svelte
+│       └── FileUpload.svelte
+├── routes/
+│   ├── +layout.svelte # Tu Sidebar y lógica de paletas
+│   ├── layout.css     # Estilos globales de las paletas
+│   ├── +page.svelte   # El Dashboard (Home)
+│   ├── upload/        # Carpeta para Subir Factura
+│   │   └── +page.svelte
+│   └── invoices/      # Carpeta para el Histórico
+│       └── +page.svelte
+└── app.html           # El esqueleto HTML

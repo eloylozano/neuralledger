@@ -1,33 +1,150 @@
 @import "tailwindcss";
 
 :root {
-	--primary: #00d2ff;
-	--secondary: #3a7bd5;
-	--bg-main: #0f172a;
-	/* Nuevas variables para el texto */
-	--text-main: #ffffff;
-	--text-muted: rgba(255, 255, 255, 0.6);
-  }
-  
-  body {
-	background-color: var(--bg-main);
-	color: var(--text-main); /* <--- Ahora el body usa la variable */
-	min-height: 100vh;
-	font-family: 'Inter', sans-serif;
-	margin: 0;
-	transition: background 0.5s ease, color 0.5s ease; /* Transición suave para ambos */
-	
-	background-image: 
-	  radial-gradient(at 0% 0%, var(--primary) 0%, transparent 40%),
-	  radial-gradient(at 100% 100%, var(--secondary) 0%, transparent 40%);
-	background-attachment: fixed;
-  }
-  
-  /* Asegúrate de que los enlaces y textos secundarios también usen variables */
-  .nav-item {
-	color: var(--text-muted);
-  }
-  
-  .nav-item:hover {
-	color: var(--text-main);
-  }
+    --primary: #00d2ff;
+    --secondary: #3a7bd5;
+    --bg-main: #0f172a;
+    --text-main: #ffffff;
+    --text-muted: rgb(230, 226, 226);
+    --glass-bg: rgba(255, 255, 255, 0.03);
+    --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+body {
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    min-height: 100vh;
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+
+	/* FOCOS DE LUZ */
+    background-image: 
+      radial-gradient(at 100% 0%, var(--primary) 0%, transparent 45%), /* Arriba Derecha */
+      radial-gradient(at 0% 100%, var(--secondary) 0%, transparent 45%); /* Abajo Izquierda */
+      
+    background-attachment: fixed;
+    transition: background-color 0.5s ease, color 0.5s ease;
+    overflow: hidden;
+}
+
+/* Estructura Principal */
+.app-container {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    position: relative;
+    z-index: 1;
+}
+
+/* Sidebar con Cristal dinámico */
+.sidebar {
+    width: 280px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(50px);
+    -webkit-backdrop-filter: blur(50px);
+    border-right: 1px solid var(--glass-border);
+    display: flex;
+    flex-direction: column;
+    padding: 2rem 1.25rem;
+    z-index: 10;
+    transition: all 0.5s ease;
+}
+
+.main-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 3rem;
+    position: relative;
+}
+
+/* Logo y Navegación */
+.logo-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    margin-bottom: 2.5rem;
+}
+
+.logo-icon {
+    width: 38px;
+    height: 38px;
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 16px -4px var(--primary);
+}
+
+.logo-text {
+    font-weight: 800;
+    font-size: 1.25rem;
+    color: var(--text-main);
+}
+
+.logo-text span { color: var(--primary); }
+
+nav { flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0.85rem 1rem;
+    text-decoration: none;
+    color: var(--text-muted);
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.nav-item:hover {
+    background: var(--glass-bg);
+    color: var(--text-main);
+    transform: translateX(4px);
+}
+
+/* Footer y Paletas */
+.sidebar-footer {
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--glass-border);
+}
+
+.palette-picker p {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: uppercase;
+}
+
+.palette-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.p-dot {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.p-dot.active {
+    border-color: var(--text-main);
+    transform: scale(1.2);
+}
+
+/* Clases globales de utilidad */
+.glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(15px);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+}
+
+h1, h2, h3, strong { color: var(--text-main); transition: color 0.5s ease; }
+p, span { color: var(--text-muted); transition: color 0.5s ease; }
