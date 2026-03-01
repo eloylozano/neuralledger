@@ -6,6 +6,7 @@
     Database,
     Palette,
     Settings,
+    BrainCircuit,
   } from "lucide-svelte";
   import { onMount } from "svelte";
 
@@ -102,7 +103,7 @@
     <div class="logo">
       <a href="/" class="logo-link">
         <div class="logo-icon">
-          <Database size={20} color="white" />
+          <BrainCircuit size={20} color="white" />
         </div>
         <span class="logo-text">Neural <span>Ledger</span></span>
       </a>

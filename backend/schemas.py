@@ -35,3 +35,13 @@ class SupplierResponse(BaseModel):
 
     class Config:
         from_attributes = True
+        
+        
+class SupplierUpdate(BaseModel):
+    name: Optional[str] = None
+    cif: Optional[str] = None
+    address: Optional[str] = None
+    ia_notes: Optional[str] = None
+
+    class Config:
+        from_attributes = True

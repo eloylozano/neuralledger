@@ -33,12 +33,11 @@ app = FastAPI(title="NeuralLedger API")
 # 3. MIDDLEWARES Y ESTÁTICOS (Deben ir después de instanciar FastAPI)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], # Añade ambas variantes
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["*"], # Usa "*" para permitir todos los verbos incluyendo DELETE y OPTIONS
     allow_headers=["*"],
 )
-
 # Servir la carpeta de almacenamiento para que el PDF se vea en el navegador
 app.mount("/storage", StaticFiles(directory=UPLOAD_DIR), name="storage")
 
@@ -218,3 +217,42 @@ async def list_suppliers(db: Session = Depends(get_db)):
         }
         result.append(s_dict)
     return result
+
+@app.put("/suppliers/{supplier_id}")
+async def update_supplier(supplier_id: int, data: schemas.SupplierUpdate, db: Session = Depends(get_db)):
+    db_supplier = db.query(models.Supplier).filter(models.Supplier.id == supplier_id).first()
+    
+    if not db_supplier:
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+    
+    # Actualizar campos dinámicamente
+    update_data = data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_supplier, key, value)
+    
+    try:
+        db.commit()
+        db.refresh(db_supplier)
+        return db_supplier
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Error al actualizar: {str(e)}")
+
+@app.delete("/suppliers/{supplier_id}")
+async def delete_supplier(supplier_id: int, db: Session = Depends(get_db)):
+    db_supplier = db.query(models.Supplier).filter(models.Supplier.id == supplier_id).first()
+    
+    if not db_supplier:
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+    
+    # Verificamos si tiene facturas asociadas para evitar errores de clave foránea
+    invoice_count = db.query(models.Invoice).filter(models.Invoice.supplier_id == supplier_id).count()
+    if invoice_count > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"No se puede borrar: Este proveedor tiene {invoice_count} facturas asociadas. Borra las facturas primero."
+        )
+
+    db.delete(db_supplier)
+    db.commit()
+    return {"message": "Proveedor eliminado correctamente"}
