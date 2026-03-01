@@ -3,6 +3,7 @@ import shutil
 import re
 import uuid
 import time
+import logging
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, joinedload
@@ -15,28 +16,24 @@ import models
 import schemas
 from utils.processor import process_pdf_to_json
 
-# --- LÓGICA DE INICIALIZACIÓN ROBUSTA ---
+# Configuración de logs para ver errores en la consola
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 def init_db():
-    """Intenta crear las tablas con reintentos si la DB no está lista"""
     retries = 15
     while retries > 0:
         try:
-            print("Intentando conectar a la base de datos...")
             models.Base.metadata.create_all(bind=engine)
-            print("¡Tablas creadas/verificadas con éxito!")
             return
-        except OperationalError as e:
+        except OperationalError:
             retries -= 1
-            print(f"Base de datos no lista (quedan {retries} intentos). Esperando 3s...")
             time.sleep(3)
-    print("Error crítico: No se pudo conectar a la base de datos.")
 
-# Llamamos a la creación de tablas con seguridad
 init_db()
 
 app = FastAPI(title="NeuralLedger API")
 
-# --- CONFIGURACIÓN CORS ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -51,20 +48,30 @@ if not os.path.exists(UPLOAD_DIR):
 
 @app.post("/process-invoice/")
 async def upload_invoice(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    # Generamos un nombre único: ej. "a1b2-c3d4...pdf"
     file_id = str(uuid.uuid4())
     temp_filename = f"{file_id}.pdf"
     file_path = os.path.join(UPLOAD_DIR, temp_filename)
     
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    # 1. Guardar archivo
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        logger.error(f"Error guardando archivo: {e}")
+        raise HTTPException(status_code=500, detail=f"No se pudo guardar el PDF: {str(e)}")
     
+    # 2. Procesar con IA
     try:
         with open(file_path, "rb") as f:
             content = f.read()
         
+        # Este es el punto más probable de fallo
         extracted_data = await process_pdf_to_json(content)
         
+        # Validamos que la IA devolvió algo
+        if not extracted_data:
+            raise ValueError("La IA no devolvió datos válidos")
+
         db_supplier = db.query(models.Supplier).filter(
             models.Supplier.cif == extracted_data.supplier_cif
         ).first()
@@ -75,10 +82,15 @@ async def upload_invoice(file: UploadFile = File(...), db: Session = Depends(get
             "db_supplier": db_supplier,
             "is_new_supplier": db_supplier is None
         }
-    except Exception as e:
-        if os.path.exists(file_path): os.remove(file_path)
-        raise HTTPException(status_code=500, detail=str(e))
 
+    except Exception as e:
+        # Si algo falla, limpiamos el archivo temporal
+        if os.path.exists(file_path): os.remove(file_path)
+        logger.error(f"Error en el procesamiento: {str(e)}")
+        # Forzamos que el error se vea en Swagger
+        raise HTTPException(status_code=500, detail=f"Error en IA/Procesamiento: {repr(e)}")
+
+# ... resto de funciones (save_invoice, list_invoices) se mantienen igual
 @app.post("/save-invoice/")
 async def save_invoice(data: schemas.InvoiceResponse, db: Session = Depends(get_db)):
     # 1. Manejo de Proveedor

@@ -34,8 +34,7 @@
   <div class="glass-card items-box">
     <div class="column-header">
       <div class="header-left">
-        <Tag size={16} class="text-primary" />
-        <span>Líneas de Detalle / Conceptos Extraídos</span>
+        <span>Conceptos Extraídos</span>
       </div>
       <button class="add-btn" onclick={addItem}>
         <Plus size={14} /> Añadir Línea

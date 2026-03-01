@@ -3,96 +3,104 @@
   import InvoiceEditor from "$lib/components/InvoiceEditor.svelte";
   import LoadingBar from "$lib/components/LoadingBar.svelte";
   import { fade, fly } from "svelte/transition";
-  import { onDestroy } from "svelte"; // Importante para la memoria
+  import { onDestroy } from "svelte";
 
-  let status = $state("idle");
+  let fileUrl = $state("");
+  let fileName = $state(""); // <-- ¡FALTABA ESTO!
   let uploadProgress = $state(0);
-  let fileName = $state("");
-  let fileUrl = $state(""); // Aquí guardaremos la URL del PDF
+  let status = $state("idle");
+  let apiResponse = $state(null);
 
-  function handleFile(file) {
-    fileName = file.name;
-
-    // 1. CREAR LA URL DEL BLOB
-    // Esto crea una dirección tipo "blob:http://localhost:5173/..."
-    fileUrl = URL.createObjectURL(file);
-
-    status = "loading";
-    simulateUpload();
-  }
-
-  // Limpieza de memoria: cuando cambies de página, borramos la URL temporal
+  // Limpieza de memoria (Esencial al crear ObjectURLs)
   onDestroy(() => {
-    if (fileUrl) URL.revokeObjectURL(fileUrl);
+    if (fileUrl) {
+      URL.revokeObjectURL(fileUrl);
+    }
   });
-  function simulateUpload() {
+
+  async function handleFile(file) {
+    fileName = file.name; // Ahora no dará error
+    fileUrl = URL.createObjectURL(file);
+    status = "loading";
     uploadProgress = 0;
-    const interval = setInterval(() => {
-      uploadProgress += Math.floor(Math.random() * 15) + 5;
-      if (uploadProgress >= 100) {
-        uploadProgress = 100;
-        clearInterval(interval);
-        setTimeout(() => {
-          status = "editing";
-        }, 800);
+
+    // Iniciamos un pequeño contador visual para que la barra no esté quieta
+    const progressInterval = setInterval(() => {
+      if (uploadProgress < 90) {
+        uploadProgress += 1; // Sube lentamente mientras la IA piensa
       }
-    }, 400);
+    }, 200);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch("http://localhost:8000/process-invoice/", {
+        method: "POST",
+        body: formData,
+      });
+
+      // ¡NUEVO!: Si falla, leemos el mensaje exacto que manda FastAPI
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Error desconocido en el servidor");
+      }
+
+      apiResponse = await response.json();
+
+      uploadProgress = 100;
+      clearInterval(progressInterval);
+
+      setTimeout(() => {
+        status = "editing";
+      }, 500);
+    } catch (error) {
+      clearInterval(progressInterval);
+
+      // Ahora el alert nos dirá el motivo real (ej: "No API key found", "Validation Error", etc.)
+      console.error("Detalle del error:", error);
+      alert("Error del Backend: " + error.message);
+
+      status = "idle";
+    }
   }
-  let mockData = $state({
-    supplier_name: "Amazon Web Services EMEA SARL",
-    supplier_cif: "LU26375245",
-    ia_notes:
-      "CIF extraído de metadatos del pie de página. Advertencia: Se detectó una discrepancia de 0.01€ en el redondeo del IVA respecto al total calculado. Se recomienda revisar la posición 2.",
-    date: "2024-02-15",
-    invoice_num: "EU-1234567-2024",
-    taxable_base: 120.5,
-    vat: 25.31,
-    total: 145.81,
-    items: [
-      {
-        position: 1,
-        description: "AWS Compute Service (EC2) - Region: Ireland",
-        quantity: 1,
-        price: 100.0,
-        tax: 21.0,
-        total_item: 121.0,
-      },
-      {
-        position: 2,
-        description: "Cloudwatch Logs Storage & Data Transfer",
-        quantity: 1,
-        price: 20.5,
-        tax: 21.0,
-        total_item: 24.81,
-      },
-    ],
-  });
 </script>
 
 <svelte:head>
   <title>NeuralLedger | Subir Factura</title>
 </svelte:head>
+
 <div class="upload-page-container {status === 'editing' ? 'is-editing' : ''}">
   <div class="upload-content">
     <header class="text-center">
       <h1>Procesar <span>Nueva Factura</span></h1>
-      <p>Análisis inteligente de documentos con DeepSeek IA</p>
+      <p>Análisis inteligente de documentos con IA</p>
     </header>
 
     <div class="content-wrapper">
       {#if status === "idle"}
         <div in:fade><Dropzone onFileSelect={handleFile} /></div>
       {:else if status === "loading"}
-        <div in:fade><LoadingBar progress={uploadProgress} /></div>
+        <div in:fade>
+          <LoadingBar progress={uploadProgress} />
+          <p class="loading-text">
+            La IA está analizando los conceptos del PDF...
+          </p>
+        </div>
       {:else if status === "editing"}
         <div class="full-width-editor" in:fly={{ y: 20, duration: 500 }}>
           <InvoiceEditor
-            data={mockData}
+            data={apiResponse}
             {fileUrl}
-            onSave={(d) => console.log(d)}
+            onSave={(result) => {
+              console.log("Guardado final:", result);
+              status = "idle";
+              apiResponse = null;
+            }}
             onCancel={() => {
               status = "idle";
-              fileUrl = ""; // Limpiamos al cancelar
+              fileUrl = "";
+              apiResponse = null;
             }}
           />
         </div>
@@ -102,6 +110,15 @@
 </div>
 
 <style>
+  .loading-text {
+    text-align: center;
+    margin-top: 1rem;
+    color: var(--primary);
+    font-weight: 600;
+    font-size: 0.9rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
   .upload-page-container {
     height: 100%;
     display: flex;

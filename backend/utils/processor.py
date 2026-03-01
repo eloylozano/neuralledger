@@ -59,7 +59,7 @@ async def process_pdf_to_json(file_content: bytes) -> InvoiceResponse:
                 "tax": 0.0,
                 "discount": 0.0,
                 "total_item": 0.0
-            }}
+            }}lla 
         ]
     }}
 
@@ -72,10 +72,16 @@ async def process_pdf_to_json(file_content: bytes) -> InvoiceResponse:
     # 3. Llamada a Ollama
     async with httpx.AsyncClient() as client:
         response = await client.post(OLLAMA_URL, json={
-            "model": "deepseek-r1:8b",
+            "model": "deepseek-r1:1.5b",
             "prompt": prompt,
             "stream": False,
-            "format": "json"
+            "format": "json",
+            "options": {
+                "temperature": 0,    # Determinismo total para facturas
+                "num_ctx": 4000,     # Contexto suficiente para un PDF
+                "top_p": 0.9
+            }
+            
         }, timeout=120.0)
         
         raw_json = response.json().get("response", "{}")

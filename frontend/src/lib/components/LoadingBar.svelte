@@ -1,61 +1,176 @@
 <script>
-    let { progress = 0, status = "Procesando..." } = $props();
-  </script>
-  
-  <div class="loading-wrapper">
-    <div class="glass-card loading-card">
-      <div class="progress-ring">
-        <svg width="120" height="120">
-          <circle class="bg" cx="60" cy="60" r="54" />
-          <circle 
-            class="fill" 
-            cx="60" cy="60" r="54" 
-            style="stroke-dashoffset: {339 - (339 * progress) / 100}" 
-          />
-        </svg>
-        <div class="percentage">{progress}%</div>
+  let { progress = 0 } = $props();
+
+  // Mensajes dinámicos según el porcentaje para dar sensación de "inteligencia"
+  let statusMessage = $derived(
+    progress < 30
+      ? "Subiendo documento..."
+      : progress < 60
+        ? "DeepSeek analizando conceptos..."
+        : progress < 90
+          ? "Extrayendo líneas de detalle..."
+          : "Finalizando auditoría..."
+  );
+</script>
+
+<div class="loading-wrapper">
+  <div class="glass-card loading-card">
+    <div class="progress-ring" class:analyzing={progress > 0 && progress < 100}>
+      <svg width="140" height="140">
+        <circle class="bg" cx="70" cy="70" r="62" />
+        <circle
+          class="fill"
+          cx="70"
+          cy="70"
+          r="62"
+          style="stroke-dasharray: 390; stroke-dashoffset: {390 -
+            (390 * progress) / 100}"
+        />
+      </svg>
+      <div class="percentage-container">
+        <span class="number">{progress}%</span>
+        <span class="label">Neural Scan</span>
       </div>
-      <h3>{status}</h3>
-      <p>La IA  está analizando los datos...</p>
+    </div>
+
+    <div class="status-info">
+      <h3>{statusMessage}</h3>
+      <div class="scanning-line"></div>
     </div>
   </div>
-  
-  <style>
-    .loading-wrapper {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 400px;
+</div>
+
+<style>
+  .loading-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 450px;
+  }
+
+  .loading-card {
+    padding: 3rem;
+    text-align: center;
+    width: 360px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(20px);
+  }
+
+  .progress-ring {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    margin-bottom: 2rem;
+  }
+
+  /* Efecto de resplandor mientras procesa */
+  .analyzing {
+    filter: drop-shadow(
+      0 0 15px color-mix(in srgb, var(--primary), transparent 50%)
+    );
+    animation: pulse 2s infinite ease-in-out;
+  }
+
+  svg {
+    transform: rotate(-90deg);
+  }
+
+  circle {
+    fill: none;
+    stroke-width: 10;
+    stroke-linecap: round;
+  }
+
+  .bg {
+    stroke: var(--glass-border);
+    opacity: 0.3;
+  }
+
+  .fill {
+    stroke: var(--primary);
+    transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .percentage-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    line-height: 1;
+  }
+
+  .number {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--text-main);
+  }
+
+  .label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--primary);
+    margin-top: 4px;
+  }
+
+  .status-info h3 {
+    font-size: 0.9rem;
+    color: var(--text-main);
+    font-weight: 500;
+    margin-bottom: 1rem;
+    min-height: 1.2rem;
+  }
+
+  /* Línea de escaneo decorativa */
+  .scanning-line {
+    width: 100px;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--primary),
+      transparent
+    );
+    margin: 0 auto;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .scanning-line::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: white;
+    animation: scan 1.5s infinite;
+  }
+
+  @keyframes scan {
+    0% {
+      left: -100%;
     }
-    .loading-card {
-      padding: 3rem;
-      text-align: center;
-      width: 320px;
+    100% {
+      left: 100%;
     }
-    .progress-ring {
-      position: relative;
-      width: 120px;
-      height: 120px;
-      margin: 0 auto 1.5rem;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
     }
-    svg { transform: rotate(-90deg); }
-    circle {
-      fill: none;
-      stroke-width: 8;
-      stroke-linecap: round;
+    50% {
+      transform: scale(1.02);
+      opacity: 0.8;
     }
-    .bg { stroke: var(--glass-border); }
-    .fill {
-      stroke: var(--primary);
-      stroke-dasharray: 339;
-      transition: stroke-dashoffset 0.5s ease;
-    }
-    .percentage {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--primary);
-    }
-  </style>
+  }
+</style>
