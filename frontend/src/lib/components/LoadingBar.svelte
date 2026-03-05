@@ -6,7 +6,7 @@
     progress < 30
       ? "Subiendo documento..."
       : progress < 60
-        ? "DeepSeek analizando conceptos..."
+        ? "NeuralLedger analizando conceptos..."
         : progress < 90
           ? "Extrayendo líneas de detalle..."
           : "Finalizando auditoría..."

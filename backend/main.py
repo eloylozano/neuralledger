@@ -11,7 +11,8 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import OperationalError
 from typing import Optional, List
-from sqlalchemy import func
+from sqlalchemy import func, extract, cast, Date, text
+from datetime import datetime
 
 # Importaciones locales
 from database import engine, get_db
@@ -312,3 +313,69 @@ async def delete_supplier(supplier_id: int, db: Session = Depends(get_db)):
     db.delete(db_supplier)
     db.commit()
     return {"message": "Proveedor eliminado correctamente"}
+
+
+@app.get("/dashboard/stats")
+async def get_dashboard_stats(db: Session = Depends(get_db)):
+    try:
+        # 1. KPIs Básicos
+        total_invoices = db.query(models.Invoice).count()
+        total_spent_val = db.query(func.sum(models.Invoice.total)).scalar() or 0.0
+        total_suppliers = db.query(models.Supplier).count()
+        
+        # Conteo físico de PDFs pendientes (los que están en la carpeta pero no en la DB)
+        try:
+            pending_files = [f for f in os.listdir(UPLOAD_DIR) 
+                             if os.path.isfile(os.path.join(UPLOAD_DIR, f)) 
+                             and f.lower().endswith('.pdf')]
+            real_pending_count = len(pending_files)
+        except Exception as e:
+            real_pending_count = 0
+
+        # --- LÓGICA DE INSIGHTS REALES ---
+        insights_list = []
+        
+        # A. Detectar proveedor top
+        top_supplier = db.query(
+            models.Supplier.name, 
+            func.sum(models.Invoice.total).label('total')
+        ).join(models.Invoice).group_by(models.Supplier.name).order_by(text('total DESC')).first()
+
+        if top_supplier:
+            insights_list.append(f"El proveedor con mayor volumen de gasto es {top_supplier.name}.")
+        
+        # B. Detectar volumen de facturas
+        insights_list.append(f"Se han registrado {total_invoices} facturas en el sistema.")
+
+        # C. Detectar archivos sin procesar
+        if real_pending_count > 0:
+            insights_list.append(f"Hay {real_pending_count} facturas pendientes de ser procesadas en la carpeta de entrada.")
+        else:
+            insights_list.append("No hay archivos pendientes en la cola de procesamiento.")
+
+        # 2. Datos para la Gráfica (Tu lógica actual)
+        monthly_data = db.query(
+            extract('month', cast(models.Invoice.date_str, Date)).label('month'),
+            func.sum(models.Invoice.total).label('total')
+        ).group_by('month').order_by('month').limit(6).all()
+
+        months_names = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+        chart_labels = [months_names[int(row.month) - 1] for row in monthly_data if row.month]
+        chart_values = [float(row.total) for row in monthly_data if row.month]
+
+        return {
+            "kpis": {
+                "total_spent": f"{total_spent_val:,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."),
+                "processed_count": total_invoices,
+                "suppliers_count": total_suppliers,
+                "pending_count": real_pending_count  # <-- Ahora enviamos el real
+            },
+            "chart": {
+                "labels": chart_labels if chart_labels else ["Sin datos"],
+                "values": chart_values if chart_values else [0]
+            },
+            "insights": insights_list # Enviamos la lista de verdades
+        }
+    except Exception as e:
+        logger.error(f"Error en dashboard stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
