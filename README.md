@@ -46,7 +46,7 @@ Pasos Rápidos
 
 **1. Clonar el repositorio:**
 ```Bash
-git clone [https://github.com/eloylozano/neuralledger.git](https://github.com/eloylozano/neuralledger.git)
+git clone https://github.com/eloylozano/neuralledger.git
 cd neuralledger
 ```
 

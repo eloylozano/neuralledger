@@ -14,7 +14,7 @@
 
   let globalTax = $state(21);
   let subtotalBruto = $state(0);
-  
+
   // Estado para el porcentaje (se sincroniza con los euros)
   let discountPercent = $state(0);
 
@@ -25,10 +25,17 @@
         (acc, item) => acc + Number(item.quantity) * Number(item.price),
         0
       );
-      
+
       // Si el backend ya mandó un descuento en €, calculamos su % inicial
-      if (subtotalBruto > 0 && Number(data.discount) > 0 && discountPercent === 0) {
-        discountPercent = ((Number(data.discount) / subtotalBruto) * 100).toFixed(1);
+      if (
+        subtotalBruto > 0 &&
+        Number(data.discount) > 0 &&
+        discountPercent === 0
+      ) {
+        discountPercent = (
+          (Number(data.discount) / subtotalBruto) *
+          100
+        ).toFixed(1);
       }
     }
   });
@@ -80,22 +87,46 @@
   {/if}
 
   <div class="global-grid no-arrows">
-    <NeuralInput label="Proveedor" icon={Building2} bind:value={data.supplier_name} />
+    <NeuralInput
+      label="Proveedor"
+      icon={Building2}
+      bind:value={data.supplier_name}
+    />
     <NeuralInput label="CIF/NIF" icon={Tag} bind:value={data.supplier_cif} />
 
     <NeuralInput label="Nº Factura" icon={Hash} bind:value={data.invoice_num} />
-    <NeuralInput label="Fecha" icon={Calendar} type="date" bind:value={data.date} />
+    <NeuralInput
+      label="Fecha"
+      icon={Calendar}
+      type="date"
+      bind:value={data.date}
+    />
 
-    <NeuralInput label="IVA Global %" icon={Percent} type="number" bind:value={globalTax} />
-    
+    <script>
+      // Añade este efecto para corregir el formato automáticamente si la IA manda basura
+      $effect(() => {
+        if (data.date && data.date.includes("/")) {
+          const [d, m, y] = data.date.split("/");
+          data.date = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+        }
+      });
+    </script>
+
+    <NeuralInput
+      label="IVA Global %"
+      icon={Percent}
+      type="number"
+      bind:value={globalTax}
+    />
+
     <div class="dual-discount">
       <div class="input-field">
         <label><TicketPercent size={12} /> Dto %</label>
         <div class="table-input-wrapper">
-          <input 
-            class="table-input" 
-            type="number" 
-            value={discountPercent} 
+          <input
+            class="table-input"
+            type="number"
+            value={discountPercent}
             oninput={handlePercentChange}
           />
           <div class="input-focus-line"></div>
@@ -104,10 +135,10 @@
       <div class="input-field">
         <label>€Importe Descuento </label>
         <div class="table-input-wrapper">
-          <input 
-            class="table-input" 
-            type="number" 
-            value={data.discount} 
+          <input
+            class="table-input"
+            type="number"
+            value={data.discount}
             oninput={handleEuroChange}
           />
           <div class="input-focus-line"></div>
@@ -214,7 +245,9 @@
     -webkit-appearance: none;
     margin: 0;
   }
-  .no-arrows :global(input[type="number"]) { -moz-appearance: textfield; }
+  .no-arrows :global(input[type="number"]) {
+    -moz-appearance: textfield;
+  }
 
   /* Totales */
   .totals-summary {
@@ -232,8 +265,16 @@
     text-align: center;
   }
 
-  .total-box span { font-size: 0.55rem; color: var(--text-muted); text-transform: uppercase; }
-  .total-box p { font-size: 1.2rem; font-weight: 800; margin: 0; }
+  .total-box span {
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+  .total-box p {
+    font-size: 1.2rem;
+    font-weight: 800;
+    margin: 0;
+  }
 
   .discount-highlight {
     border-color: rgba(248, 113, 113, 0.3);
@@ -246,8 +287,37 @@
     color: var(--primary);
   }
 
-  .column-header { display: flex; align-items: center; gap: 8px; margin-bottom: 1.25rem; font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
-  .ia-alert { background: color-mix(in srgb, var(--primary), transparent 92%); border: 1px solid color-mix(in srgb, var(--primary), transparent 70%); padding: 0.8rem; border-radius: 12px; margin-bottom: 1.25rem; }
-  .ia-alert-header { color: var(--primary); font-size: 0.65rem; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; }
-  .ia-notes-editor { width: 100%; background: transparent; border: none; color: var(--text-main); font-size: 0.85rem; resize: vertical; outline: none; }
+  .column-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 1.25rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+  .ia-alert {
+    background: color-mix(in srgb, var(--primary), transparent 92%);
+    border: 1px solid color-mix(in srgb, var(--primary), transparent 70%);
+    padding: 0.8rem;
+    border-radius: 12px;
+    margin-bottom: 1.25rem;
+  }
+  .ia-alert-header {
+    color: var(--primary);
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .ia-notes-editor {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: var(--text-main);
+    font-size: 0.85rem;
+    resize: vertical;
+    outline: none;
+  }
 </style>
