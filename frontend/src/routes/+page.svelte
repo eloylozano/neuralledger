@@ -208,12 +208,13 @@
     align-items: center;
     gap: 0.5rem;
     background: var(--primary);
-    color: #000 !important;
+    color: #000 !important; /* Color negro para contraste sobre el primario */
     padding: 0.8rem 1.5rem;
     border-radius: 14px;
     font-weight: bold;
     text-decoration: none;
-    box-shadow: 0 10px 20px -5px rgba(0, 210, 255, 0.4);
+    box-shadow: 0 10px 20px -5px color-mix(in srgb, var(--primary), transparent
+          60%);
     transition: transform 0.2s;
   }
 
@@ -321,15 +322,18 @@
   @keyframes pulse {
     0% {
       transform: scale(0.95);
-      box-shadow: 0 0 0 0 rgba(0, 210, 255, 0.7);
+      /* Usamos color-mix para que el brillo sea coherente con el color primario actual */
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary), transparent 30%);
     }
     70% {
       transform: scale(1);
-      box-shadow: 0 0 0 10px rgba(0, 210, 255, 0);
+      /* Se expande y se desvanece */
+      box-shadow: 0 0 0 10px
+        color-mix(in srgb, var(--primary), transparent 100%);
     }
     100% {
       transform: scale(0.95);
-      box-shadow: 0 0 0 0 rgba(0, 210, 255, 0);
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary), transparent 100%);
     }
   }
 
