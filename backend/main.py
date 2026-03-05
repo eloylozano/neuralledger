@@ -379,3 +379,126 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error en dashboard stats: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+    
+# --- NUEVOS ENDPOINTS DE MANTENIMIENTO ---
+
+@app.get("/api/db/export")
+async def export_database(db: Session = Depends(get_db)):
+    try:
+        # Consultar toda la base de datos con sus relaciones
+        suppliers = db.query(models.Supplier).options(
+            joinedload(models.Supplier.invoices).joinedload(models.Invoice.items)
+        ).all()
+
+        export_data = {
+            "version": "1.0",
+            "exported_at": datetime.now().isoformat(),
+            "suppliers": []
+        }
+
+        for s in suppliers:
+            s_data = {
+                "name": s.name,
+                "cif": s.cif,
+                "address": s.address,
+                "ia_notes": s.ia_notes,
+                "invoices": []
+            }
+            for inv in s.invoices:
+                inv_data = {
+                    "invoice_num": inv.invoice_num,
+                    "date": inv.date_str,
+                    "taxable_base": inv.taxable_base,
+                    "vat": inv.vat,
+                    "discount": inv.discount,
+                    "total": inv.total,
+                    "pdf_path": inv.pdf_path,
+                    "items": [
+                        {
+                            "position": item.position,
+                            "description": item.description,
+                            "quantity": item.quantity,
+                            "price": item.price,
+                            "tax": item.tax,
+                            "discount": item.discount,
+                            "total_item": item.total_item
+                        } for item in inv.items
+                    ]
+                }
+                s_data["invoices"].append(inv_data)
+            export_data["suppliers"].append(s_data)
+
+        return export_data
+    except Exception as e:
+        logger.error(f"Error exportando DB: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error al generar el backup")
+
+@app.post("/api/db/import")
+async def import_database(data: dict, db: Session = Depends(get_db)):
+    try:
+        # 1. Limpiar base de datos actual (Opcional, según prefieras)
+        db.query(models.InvoiceLine).delete()
+        db.query(models.Invoice).delete()
+        db.query(models.Supplier).delete()
+        
+        # 2. Re-poblar desde el JSON
+        for s_data in data.get("suppliers", []):
+            db_supplier = models.Supplier(
+                name=s_data["name"],
+                cif=s_data["cif"],
+                address=s_data["address"],
+                ia_notes=s_data.get("ia_notes")
+            )
+            db.add(db_supplier)
+            db.flush() # Para obtener el ID del proveedor
+
+            for inv_data in s_data.get("invoices", []):
+                db_invoice = models.Invoice(
+                    invoice_num=inv_data["invoice_num"],
+                    date_str=inv_data["date"],
+                    taxable_base=inv_data["taxable_base"],
+                    vat=inv_data["vat"],
+                    discount=inv_data["discount"],
+                    total=inv_data["total"],
+                    pdf_path=inv_data.get("pdf_path"),
+                    supplier_id=db_supplier.id
+                )
+                db.add(db_invoice)
+                db.flush()
+
+                for item_data in inv_data.get("items", []):
+                    db_item = models.InvoiceLine(
+                        **item_data,
+                        invoice_id=db_invoice.id
+                    )
+                    db.add(db_item)
+        
+        db.commit()
+        return {"success": True, "message": "Datos importados correctamente"}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error importando DB: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error al restaurar el backup")
+
+@app.post("/api/maintenance/reindex")
+async def reindex_files(db: Session = Depends(get_db)):
+    # Simulación de re-indexación: contar archivos en storage
+    try:
+        files = [f for f in os.listdir(UPLOAD_DIR) if f.endswith(".pdf")]
+        # Aquí podrías añadir lógica para verificar si cada archivo está en la DB
+        return {"success": True, "count": len(files)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/db/clear")
+async def clear_database(db: Session = Depends(get_db)):
+    try:
+        db.query(models.InvoiceLine).delete()
+        db.query(models.Invoice).delete()
+        db.query(models.Supplier).delete()
+        db.commit()
+        return {"success": True, "message": "Todos los registros han sido eliminados"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
