@@ -40,6 +40,18 @@
     }
   });
 
+  $effect(() => {
+    if (data.date && data.date.includes("/")) {
+      // Si la fecha viene como 25/12/2024
+      const parts = data.date.split("/");
+      if (parts.length === 3) {
+        const [d, m, y] = parts;
+        // La convertimos a 2024-12-25 (ISO)
+        data.date = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+      }
+    }
+  });
+
   // 2. Lógica de vinculación: Si el usuario cambia el %, actualizamos los €
   function handlePercentChange(e) {
     const newPercent = Number(e.target.value);
@@ -81,7 +93,7 @@
       <textarea
         bind:value={data.ia_notes}
         class="ia-notes-editor"
-        placeholder="Instrucciones..."
+        placeholder="Añade instrucciones para que la IA las use en las próximas facturas..."
       ></textarea>
     </div>
   {/if}
@@ -101,16 +113,6 @@
       type="date"
       bind:value={data.date}
     />
-
-    <script>
-      // Añade este efecto para corregir el formato automáticamente si la IA manda basura
-      $effect(() => {
-        if (data.date && data.date.includes("/")) {
-          const [d, m, y] = data.date.split("/");
-          data.date = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-        }
-      });
-    </script>
 
     <NeuralInput
       label="IVA Global %"

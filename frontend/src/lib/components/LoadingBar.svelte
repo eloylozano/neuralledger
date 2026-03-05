@@ -1,7 +1,32 @@
 <script>
+  import { onMount } from "svelte";
   let { progress = 0 } = $props();
 
-  // Mensajes dinámicos según el porcentaje para dar sensación de "inteligencia"
+  let seconds = $state(0);
+  let timerInterval;
+
+  // Usamos onMount para que el cronómetro empiece nada más nacer el componente
+  onMount(() => {
+    timerInterval = setInterval(() => {
+      // Solo sumamos si el progreso no ha llegado al final
+      if (progress < 100) {
+        seconds += 1;
+      }
+    }, 1000);
+
+    // Limpieza al destruir el componente
+    return () => {
+      if (timerInterval) clearInterval(timerInterval);
+    };
+  });
+
+  // Efecto reactivo para detenerlo si el progreso llega a 100 súbitamente
+  $effect(() => {
+    if (progress >= 100) {
+      clearInterval(timerInterval);
+    }
+  });
+
   let statusMessage = $derived(
     progress < 30
       ? "Subiendo documento..."
@@ -23,12 +48,13 @@
           cx="70"
           cy="70"
           r="62"
-          style="stroke-dasharray: 390; stroke-dashoffset: {390 -
-            (390 * progress) / 100}"
+          style="stroke-dasharray: 390; stroke-dashoffset: {390 - (390 * progress) / 100}"
         />
       </svg>
+      
       <div class="percentage-container">
         <span class="number">{progress}%</span>
+        <span class="chrono">{seconds}s</span>
         <span class="label">Neural Scan</span>
       </div>
     </div>
@@ -41,6 +67,7 @@
 </div>
 
 <style>
+  /* Mantenemos tus estilos anteriores, asegurando que .chrono se vea bien */
   .loading-wrapper {
     display: flex;
     justify-content: center;
@@ -58,6 +85,7 @@
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     backdrop-filter: blur(20px);
+    border-radius: 24px;
   }
 
   .progress-ring {
@@ -67,29 +95,14 @@
     margin-bottom: 2rem;
   }
 
-  /* Efecto de resplandor mientras procesa */
   .analyzing {
-    filter: drop-shadow(
-      0 0 15px color-mix(in srgb, var(--primary), transparent 50%)
-    );
+    filter: drop-shadow(0 0 15px color-mix(in srgb, var(--primary), transparent 50%));
     animation: pulse 2s infinite ease-in-out;
   }
 
-  svg {
-    transform: rotate(-90deg);
-  }
-
-  circle {
-    fill: none;
-    stroke-width: 10;
-    stroke-linecap: round;
-  }
-
-  .bg {
-    stroke: var(--glass-border);
-    opacity: 0.3;
-  }
-
+  svg { transform: rotate(-90deg); }
+  circle { fill: none; stroke-width: 10; stroke-linecap: round; }
+  .bg { stroke: var(--glass-border); opacity: 0.3; }
   .fill {
     stroke: var(--primary);
     transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1);
@@ -102,7 +115,8 @@
     transform: translate(-50%, -50%);
     display: flex;
     flex-direction: column;
-    line-height: 1;
+    align-items: center;
+    line-height: 1.2;
   }
 
   .number {
@@ -111,12 +125,21 @@
     color: var(--text-main);
   }
 
+  .chrono {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 0.9rem;
+    color: var(--primary);
+    font-weight: 700;
+    text-shadow: 0 0 10px color-mix(in srgb, var(--primary), transparent 70%);
+    margin: 2px 0;
+  }
+
   .label {
-    font-size: 0.6rem;
+    font-size: 0.5rem;
     text-transform: uppercase;
     letter-spacing: 2px;
-    color: var(--primary);
-    margin-top: 4px;
+    color: var(--text-muted);
+    font-weight: 700;
   }
 
   .status-info h3 {
@@ -124,19 +147,12 @@
     color: var(--text-main);
     font-weight: 500;
     margin-bottom: 1rem;
-    min-height: 1.2rem;
   }
 
-  /* Línea de escaneo decorativa */
   .scanning-line {
     width: 100px;
     height: 2px;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      var(--primary),
-      transparent
-    );
+    background: linear-gradient(90deg, transparent, var(--primary), transparent);
     margin: 0 auto;
     position: relative;
     overflow: hidden;
@@ -153,24 +169,9 @@
     animation: scan 1.5s infinite;
   }
 
-  @keyframes scan {
-    0% {
-      left: -100%;
-    }
-    100% {
-      left: 100%;
-    }
-  }
-
+  @keyframes scan { 0% { left: -100%; } 100% { left: 100%; } }
   @keyframes pulse {
-    0%,
-    100% {
-      transform: scale(1);
-      opacity: 1;
-    }
-    50% {
-      transform: scale(1.02);
-      opacity: 0.8;
-    }
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.02); opacity: 0.8; }
   }
 </style>
