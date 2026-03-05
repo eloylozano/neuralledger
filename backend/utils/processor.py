@@ -8,19 +8,16 @@ OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_URL = f"{OLLAMA_HOST}/api/generate"
 
 async def process_pdf_to_json(full_text: str, context: str = "") -> InvoiceResponse:
-    # 1. Prompt refinado
     prompt = f"""
-    Eres un auditor contable. Extrae los datos de esta factura a JSON.
+    Eres un auditor contable experto. Tu objetivo es extraer datos exactos de facturas.
     
-    MEMORIA IMPORTANTE PARA ESTE PROVEEDOR:
-    \"\"\"
-    {context if context else "No hay instrucciones previas."}
-    \"\"\"
+    [MEMORIA DEL SISTEMA - PRIORIDAD ALTA]
+    {f"DATOS CONOCIDOS DEL PROVEEDOR: {context}" if context else "No hay datos previos."}
 
-    REGLAS:
-    - CIF: Solo letras y números.
-    - IA_NOTES: Si usaste la MEMORIA, indícalo aquí. Si faltan datos, anótalo.
-    - Formato: Solo JSON puro.
+    [REGLAS CRÍTICAS]
+    1. CIF: Si la MEMORIA indica un CIF, USA ESE. No inventes uno nuevo de emails o webs.
+    2. IA_NOTES: Si usaste la MEMORIA para corregir datos, indícalo aquí.
+    3. Si el texto del PDF es contradictorio con la MEMORIA, prioriza la MEMORIA.
 
     JSON REQUERIDO:
     {{
@@ -58,8 +55,7 @@ async def process_pdf_to_json(full_text: str, context: str = "") -> InvoiceRespo
             "format": "json",
             "options": {
                 "temperature": 0,
-                "num_ctx": 4096,
-                "num_predict": 800  # Limita la longitud para ganar velocidad
+                "num_ctx": 4096
             }
         }, timeout=120.0)
         
@@ -69,19 +65,26 @@ async def process_pdf_to_json(full_text: str, context: str = "") -> InvoiceRespo
         try:
             data_dict = json.loads(raw_json)
 
-            # Validación de sumas
+            # Validación de sumas básica
             items = data_dict.get("items", [])
             real_base = sum(item.get("total_item", 0) for item in items)
-            
-            if abs(data_dict.get("taxable_base", 0) - real_base) > 1:
+            if real_base > 0 and abs(data_dict.get("taxable_base", 0) - real_base) > 1:
                 data_dict["taxable_base"] = round(real_base, 2)
             
-            data_dict["total"] = round(data_dict["taxable_base"] + data_dict.get("vat", 0) - data_dict.get("discount", 0), 2)
-
-            # Normalización final de CIF
+            # Normalización de CIF
             cif = data_dict.get("supplier_cif", "")
-            data_dict["supplier_cif"] = re.sub(r'[^A-Z0-9]', '', cif.upper())
+            clean_cif = re.sub(r'[^A-Z0-9]', '', cif.upper())
 
+            # REFUERZO: Si tenemos contexto y la IA falló el CIF, lo restauramos
+            if context and (len(clean_cif) > 12 or len(clean_cif) < 5):
+                match_in_context = re.search(r'[A-Z0-9]{8,10}', context)
+                if match_in_context:
+                    clean_cif = match_in_context.group(0)
+                    data_dict["ia_notes"] = (data_dict.get("ia_notes", "") + " | CIF recuperado de memoria").strip()
+
+            data_dict["supplier_cif"] = clean_cif
+            
+            # IMPORTANTE: El return que faltaba
             return InvoiceResponse(**data_dict)
 
         except Exception as e:

@@ -67,7 +67,7 @@
 </script>
 
 <svelte:head>
-  <title>NeuralLedger | Subir Factura</title>
+  <title>NeuralLedger</title>
 </svelte:head>
 
 <div class="upload-page-container {status === 'editing' ? 'is-editing' : ''}">

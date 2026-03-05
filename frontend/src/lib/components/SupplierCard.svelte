@@ -55,29 +55,28 @@
     if (!confirmed) return;
 
     try {
-      // Elimina cualquier '/' accidental al final de la URL
       const res = await fetch(
         `http://localhost:8000/suppliers/${supplier.id}`,
         {
           method: "DELETE",
-          headers: {
-            Accept: "application/json",
-          },
         }
       );
 
       if (res.ok) {
+        // IMPORTANTE: Avisamos al padre PRIMERO.
+        // Si el servidor devolvió 200-299, el borrado es real.
         dispatch("delete", { id: supplier.id });
       } else {
+        // Solo intentamos leer el error si la respuesta no es OK
         const errorData = await res.json();
         alert(`⚠️ ${errorData.detail || "Error al eliminar"}`);
       }
     } catch (e) {
-      console.error("Error capturado:", e);
-
-      alert(
-        "Error de red. Por favor, refresca la página para verificar si se eliminó."
-      );
+      // Si el registro desaparece al refrescar, es que el servidor SÍ lo borró
+      // pero hubo un hipo en la conexión de respuesta.
+      console.error("Error en red:", e);
+      // Opcional: podrías disparar el delete aquí también si confías en tu backend
+      // dispatch("delete", { id: supplier.id });
     }
   }
 
@@ -85,7 +84,7 @@
     new Intl.NumberFormat("es-ES", {
       style: "currency",
       currency: "EUR",
-    }).format(val);g
+    }).format(val);
 </script>
 
 <div class="card {editing ? 'is-editing' : ''}">
@@ -174,6 +173,7 @@
 <style>
   /* Tus estilos se mantienen iguales... */
   .card.is-editing {
+    color: var(--text-main);
     border-color: var(--primary);
     background: rgba(var(--primary-rgb), 0.05);
   }
@@ -212,7 +212,7 @@
   .name {
     font-size: 1.35rem;
     font-weight: 700;
-    color: #fff;
+    color: var(--text-main);
   }
   .cif {
     display: flex;

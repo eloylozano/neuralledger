@@ -103,7 +103,12 @@
     <div class="logo">
       <a href="/" class="logo-link">
         <div class="logo-icon">
-          <BrainCircuit size={20} color="white" />
+          <img
+            src="/logo.png"
+            class="img-fluid rounded-top"
+            alt=""
+          />
+          
         </div>
         <span class="logo-text">Neural <span>Ledger</span></span>
       </a>

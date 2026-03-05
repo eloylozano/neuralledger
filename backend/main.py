@@ -68,50 +68,77 @@ async def upload_invoice(file: UploadFile = File(...), db: Session = Depends(get
         with open(file_path, "wb") as f:
             f.write(content)
         
-        # 1. Extracción de texto única y rápida
+        # 1. Extracción de texto
         doc = fitz.open(stream=content, filetype="pdf")
         full_text = ""
         for page in doc:
-            blocks = page.get_text("blocks")
-            blocks.sort(key=lambda b: (b[1], b[0])) # Orden natural de lectura
-            for b in blocks:
-                full_text += f"{b[4]}\n"
+            full_text += page.get_text()
         doc.close()
 
-        # 2. Búsqueda de CIF con Normalización (Memoria)
+        # 2. Búsqueda de Memoria (CIF o Nombre)
         historical_context = ""
         cif_pattern = r'([ABCDEFGHJKLMNPQSVW][\s\.\-]?\d{8})|(\d{8}[\s\.\-]?[TRWAGMYFPDXBNJZSQVHLCKE])'
         cif_match = re.search(cif_pattern, full_text.upper())
 
+        db_supplier = None
         if cif_match:
-            raw_cif = cif_match.group(0)
-            clean_cif = re.sub(r'[^A-Z0-9]', '', raw_cif)
-            
+            clean_cif = re.sub(r'[^A-Z0-9]', '', cif_match.group(0))
             db_supplier = db.query(models.Supplier).filter(models.Supplier.cif == clean_cif).first()
-            if db_supplier and db_supplier.ia_notes:
-                historical_context = db_supplier.ia_notes
-                logger.info(f"Memoria encontrada para {clean_cif}: {historical_context}")
+        
+        if not db_supplier:
+            all_suppliers = db.query(models.Supplier).all()
+            for s in all_suppliers:
+                if s.name.upper() in full_text.upper():
+                    db_supplier = s
+                    break
 
-        # 3. Procesar con IA (pasando el contexto histórico si existe)
+        if db_supplier:
+            # Inyectamos el CIF y las notas de memoria
+            historical_context = f"Proveedor: {db_supplier.name}. CIF: {db_supplier.cif}. Notas: {db_supplier.ia_notes}"
+            logger.info(f"Memoria inyectada para: {db_supplier.name}")
+
+        # 3. Procesar con IA
         extracted_data = await process_pdf_to_json(full_text, context=historical_context)
         extracted_data.temp_file = temp_filename
-        
-        # Verificar proveedor para el Front (si ya lo conocemos)
-        db_supplier = db.query(models.Supplier).filter(
+
+        # --- NUEVA LÓGICA DE POST-PROCESAMIENTO MATEMÁTICO ---
+        # Si hay un descuento mencionado en la memoria, forzamos el cálculo aquí
+        if db_supplier and db_supplier.ia_notes:
+            # Buscamos un patrón de porcentaje (ej: "10%") en las notas del proveedor
+            pct_match = re.search(r'(\d+(?:\.\d+)?)\s*%', db_supplier.ia_notes)
+            if pct_match:
+                discount_pct = float(pct_match.group(1))
+                
+                # Recalculamos basándonos en los items extraídos
+                subtotal_items = sum(item.quantity * item.price for item in extracted_data.items)
+                
+                # Aplicamos el descuento de memoria
+                new_discount = round(subtotal_items * (discount_pct / 100), 2)
+                extracted_data.discount = new_discount
+                
+                # Recalculamos Base e Imponible y Total
+                extracted_data.taxable_base = round(subtotal_items - new_discount, 2)
+                # El total es Base + IVA (asumiendo que el IVA extraído es correcto)
+                extracted_data.total = round(extracted_data.taxable_base + extracted_data.vat, 2)
+                
+                extracted_data.ia_notes += f" [Cálculo: Dto {discount_pct}% aplicado por sistema]"
+
+        # 4. Verificación final del proveedor
+        final_supplier = db.query(models.Supplier).filter(
             models.Supplier.cif == extracted_data.supplier_cif
         ).first()
         
         return {
             "extracted": extracted_data,
             "temp_file": temp_filename, 
-            "db_supplier": db_supplier,
-            "is_new_supplier": db_supplier is None
+            "db_supplier": final_supplier,
+            "is_new_supplier": final_supplier is None
         }
 
     except Exception as e:
         if os.path.exists(file_path): os.remove(file_path)
-        logger.error(f"Error en el procesamiento: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error en IA: {repr(e)}")
+        logger.error(f"Error en backend: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/save-invoice/")
 async def save_invoice(data: schemas.InvoiceResponse, db: Session = Depends(get_db)):

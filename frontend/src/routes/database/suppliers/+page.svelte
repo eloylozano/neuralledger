@@ -3,6 +3,7 @@
   import { Users, Search, RefreshCw } from "lucide-svelte";
   import SupplierCard from "$lib/components/SupplierCard.svelte";
 
+  // Definición de la interfaz
   interface Supplier {
     id: number;
     name: string;
@@ -12,7 +13,8 @@
     total_spent: number;
   }
 
-  let suppliers = $state([]);
+  // Runes de Svelte 5
+  let suppliers = $state<Supplier[]>([]);
   let loading = $state(true);
   let searchTerm = $state("");
 
@@ -30,8 +32,25 @@
     }
   }
 
+  // --- FUNCIONES QUE FALTABAN ---
+
+  // Se ejecuta cuando el hijo avisa que se actualizó un proveedor
+  function handleUpdate(event) {
+    const updated = event.detail;
+    suppliers = suppliers.map((s) =>
+      s.id === updated.id ? { ...s, ...updated } : s
+    );
+  }
+
+  // Elimina de la lista local inmediatamente
+  function handleDelete(event) {
+    const id = event.detail.id;
+    suppliers = suppliers.filter((s) => s.id !== id);
+  }
+
   onMount(fetchSuppliers);
 
+  // Derivado reactivo para el filtrado
   let filtered = $derived(
     suppliers.filter(
       (s) =>
@@ -142,7 +161,7 @@
     width: 100%;
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
-    padding: 0.8rem 0.8rem ;
+    padding: 0.8rem 0.8rem;
     border-radius: 14px;
     color: white;
     transition: all 0.3s ease;

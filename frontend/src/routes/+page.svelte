@@ -1,6 +1,6 @@
 <div class="welcome-section">
   <header>
-    <h1>Bienvenido a <span>NeuralLedger</span></h1>
+    <h1>Bienvenido a <span class="font-black">NeuralLedger</span></h1>
     <p>Tu asistente inteligente de contabilidad</p>
   </header>
 
