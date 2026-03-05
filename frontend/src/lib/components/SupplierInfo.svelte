@@ -102,7 +102,7 @@
         </div>
       </div>
       <div class="input-field">
-        <label>€ Importe Descuento </label>
+        <label>€Importe Descuento </label>
         <div class="table-input-wrapper">
           <input 
             class="table-input" 

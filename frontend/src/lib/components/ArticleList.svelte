@@ -20,7 +20,7 @@
         description: "",
         quantity: 1,
         price: 0,
-        tax: 21,
+        tax: 0,
         total_item: 0,
       },
     ];

@@ -6,12 +6,13 @@ class InvoiceItem(BaseModel):
     description: str
     quantity: float # Cambiado a float por si hay pesos (2.5kg)
     price: float
-    tax: Optional[float] = 21.0 # Añadido: Lo necesitas en main.py
+    tax: Optional[float] = 0.0 # Añadido: Lo necesitas en main.py
     ia_notes: Optional[str] = "" 
     discount: float
     total_item: float
 
 class InvoiceResponse(BaseModel):
+    id: Optional[int] = None
     supplier_name: str
     supplier_cif: str
     date: str

@@ -142,84 +142,113 @@ async def upload_invoice(file: UploadFile = File(...), db: Session = Depends(get
 
 @app.post("/save-invoice/")
 async def save_invoice(data: schemas.InvoiceResponse, db: Session = Depends(get_db)):
-    # 1. Gestión del Proveedor (Crear o Actualizar Notas)
-    db_supplier = db.query(models.Supplier).filter(models.Supplier.cif == data.supplier_cif).first()
-    
-    if not db_supplier:
-        db_supplier = models.Supplier(
-            name=data.supplier_name,
-            cif=data.supplier_cif,
-            address="Verificado en revisión",
-            ia_notes=data.ia_notes
-        )
-        db.add(db_supplier)
-        db.commit()
-        db.refresh(db_supplier)
-    else:
-        # Actualizamos la memoria del proveedor con las nuevas notas de la IA
-        if data.ia_notes:
-            db_supplier.ia_notes = data.ia_notes
-            db.add(db_supplier)
-
-    # 2. Organización de carpetas por proveedor
-    clean_name = re.sub(r'[^a-zA-Z0-9]', '', data.supplier_name)
-    folder_name = f"{clean_name}_{data.supplier_cif}"
-    supplier_dir = os.path.join(UPLOAD_DIR, folder_name)
-    if not os.path.exists(supplier_dir): 
-        os.makedirs(supplier_dir)
-
-    # 3. Mover archivo de temp a carpeta final
-    clean_inv_num = data.invoice_num.replace("/", "-").replace(" ", "_")
-    final_filename = f"Factura_{clean_inv_num}.pdf"
-    
-    # Path físico para el SO
-    absolute_pdf_path = os.path.join(supplier_dir, final_filename)
-    # Path relativo para la URL del navegador (Frontend)
-    relative_pdf_path = f"storage/{folder_name}/{final_filename}"
-
-    temp_path = os.path.join(UPLOAD_DIR, data.temp_file) 
-    if os.path.exists(temp_path):
-        shutil.move(temp_path, absolute_pdf_path)
-    
-    # 4. Crear la Factura en DB
-    new_invoice = models.Invoice(
-        invoice_num=data.invoice_num,
-        date_str=data.date,
-        taxable_base=data.taxable_base,
-        vat=data.vat,
-        discount=data.discount,
-        total=data.total,
-        supplier_id=db_supplier.id,
-        pdf_path=relative_pdf_path 
-    )
-    db.add(new_invoice)
-    db.commit()
-    db.refresh(new_invoice)
-
-    # 5. Guardar Líneas de Detalle
-    for item in data.items:
-        item_data = item.model_dump()
-        tax_val = item_data.get('tax') if item_data.get('tax') is not None else 0.0
+    try:
+        # 1. Gestión del Proveedor
+        db_supplier = db.query(models.Supplier).filter(models.Supplier.cif == data.supplier_cif).first()
         
-        db_item = models.InvoiceLine(
-            position=item_data.get('position'),
-            description=item_data.get('description'),
-            quantity=item_data.get('quantity'),
-            price=item_data.get('price'),
-            tax=float(tax_val), 
-            discount=item_data.get('discount', 0.0),
-            total_item=item_data.get('total_item'),
-            invoice_id=new_invoice.id
-        )
-        db.add(db_item)
-    
-    db.commit()
-    return {"message": "Factura guardada correctamente", "pdf_url": relative_pdf_path}
+        if not db_supplier:
+            db_supplier = models.Supplier(
+                name=data.supplier_name,
+                cif=data.supplier_cif,
+                address="Verificado en revisión",
+                ia_notes=data.ia_notes
+            )
+            db.add(db_supplier)
+            db.commit()
+            db.refresh(db_supplier)
+        else:
+            if data.ia_notes:
+                db_supplier.ia_notes = data.ia_notes
+                db.add(db_supplier)
+
+        # 2. Organización de carpetas
+        clean_name = re.sub(r'[^a-zA-Z0-9]', '', data.supplier_name)
+        folder_name = f"{clean_name}_{data.supplier_cif}"
+        supplier_dir = os.path.join(UPLOAD_DIR, folder_name)
+        if not os.path.exists(supplier_dir): 
+            os.makedirs(supplier_dir)
+
+        # 3. Lógica del PDF (Solo si es nuevo y viene de temp)
+        # Intentamos obtener el ID si existe en el schema
+        invoice_id = getattr(data, 'id', None)
+        relative_pdf_path = getattr(data, 'pdf_path', None)
+
+        if data.temp_file:
+            clean_inv_num = data.invoice_num.replace("/", "-").replace(" ", "_")
+            final_filename = f"Factura_{clean_inv_num}.pdf"
+            absolute_pdf_path = os.path.join(supplier_dir, final_filename)
+            relative_pdf_path = f"storage/{folder_name}/{final_filename}"
+
+            temp_path = os.path.join(UPLOAD_DIR, data.temp_file) 
+            if os.path.exists(temp_path):
+                shutil.move(temp_path, absolute_pdf_path)
+
+        # 4. Crear o Actualizar la Factura
+        if invoice_id:
+            # MODO EDICIÓN
+            new_invoice = db.query(models.Invoice).filter(models.Invoice.id == invoice_id).first()
+            if not new_invoice:
+                raise HTTPException(status_code=404, detail="Factura no encontrada")
+            
+            new_invoice.invoice_num = data.invoice_num
+            new_invoice.date_str = data.date
+            new_invoice.taxable_base = data.taxable_base
+            new_invoice.vat = data.vat
+            new_invoice.discount = data.discount
+            new_invoice.total = data.total
+            # No sobreescribimos el path si no hay uno nuevo
+            if relative_pdf_path:
+                new_invoice.pdf_path = relative_pdf_path
+        else:
+            # MODO NUEVA FACTURA
+            new_invoice = models.Invoice(
+                invoice_num=data.invoice_num,
+                date_str=data.date,
+                taxable_base=data.taxable_base,
+                vat=data.vat,
+                discount=data.discount,
+                total=data.total,
+                supplier_id=db_supplier.id,
+                pdf_path=relative_pdf_path 
+            )
+            db.add(new_invoice)
+
+        db.commit()
+        db.refresh(new_invoice)
+
+        # 5. Guardar Líneas (Borramos las anteriores y creamos nuevas para evitar duplicados en edición)
+        if invoice_id:
+            db.query(models.InvoiceLine).filter(models.InvoiceLine.invoice_id == new_invoice.id).delete()
+
+        for item in data.items:
+            item_data = item.model_dump() if hasattr(item, 'model_dump') else item
+            db_item = models.InvoiceLine(
+                position=item_data.get('position'),
+                description=item_data.get('description'),
+                quantity=item_data.get('quantity'),
+                price=item_data.get('price'),
+                tax=float(item_data.get('tax', 0.0)), 
+                discount=item_data.get('discount', 0.0),
+                total_item=item_data.get('total_item'),
+                invoice_id=new_invoice.id
+            )
+            db.add(db_item)
+        
+        db.commit()
+        return {"message": "Operación exitosa", "pdf_url": new_invoice.pdf_path, "id": new_invoice.id}
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error en save_invoice: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/invoices/")
 async def list_invoices(db: Session = Depends(get_db)):
-    # joinedload carga el proveedor en la misma consulta (más rápido)
-    return db.query(models.Invoice).options(joinedload(models.Invoice.supplier)).all()
+    # Añadimos joinedload para los items/líneas de la factura
+    return db.query(models.Invoice).options(
+        joinedload(models.Invoice.supplier),
+        joinedload(models.Invoice.items) # <--- Asegúrate que el nombre coincida con tu models.py
+    ).all()
 
 @app.get("/suppliers/", response_model=List[schemas.SupplierResponse]) # Necesitaremos crear este schema
 async def list_suppliers(db: Session = Depends(get_db)):
