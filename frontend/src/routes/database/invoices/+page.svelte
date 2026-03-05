@@ -188,14 +188,14 @@
                   >{invoice.date_str}</td
                 >
                 <td class="px-6 py-4">
-                  <div class="font-semibold text-white">
+                  <div class="font-semibold text-[var(--text-main)]">
                     {invoice.supplier?.name || "Sin nombre"}
                   </div>
                   <div class="text-[10px] opacity-50 uppercase">
                     #{invoice.invoice_num}
                   </div>
                 </td>
-                <td class="px-6 py-4 font-bold text-[var(--primary)]"
+                <td class="px-6 py-4 font-bold text-[var(--text-muted)]"
                   >{formatCurrency(invoice.total)}</td
                 >
                 <td class="px-6 py-4">
@@ -262,7 +262,8 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: #0b0f1a; /* Fondo sólido para evitar transparencias raras */
+    /* Usamos el fondo del tema en lugar de un azul oscuro fijo */
+    background: var(--bg-main, #0b0f1a);
     z-index: 1000;
     overflow-y: auto;
     padding: 1.5rem;
@@ -281,7 +282,8 @@
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--glass-border);
     border-radius: 12px;
-    color: white;
+    /* CAMBIO AQUÍ */
+    color: var(--text-main);
     cursor: pointer;
     font-weight: 600;
     transition: all 0.2s;
@@ -290,6 +292,7 @@
   .close-btn:hover {
     background: rgba(255, 255, 255, 0.1);
     border-color: var(--primary);
+    color: var(--primary); /* Feedback visual al hover */
   }
 
   /* BUSQUEDA */
@@ -299,7 +302,8 @@
     border-radius: 12px;
     padding: 0.6rem 1rem 0.6rem 2.5rem;
     font-size: 0.85rem;
-    color: white;
+    /* CAMBIO AQUÍ */
+    color: var(--text-main);
     width: 280px;
     outline: none;
   }
@@ -318,7 +322,10 @@
 
   .table-row {
     transition: all 0.2s;
+    /* Aseguramos que el texto base de la fila siga el tema */
+    color: var(--text-main);
   }
+
   .table-row.active {
     background: rgba(0, 210, 255, 0.08);
   }
@@ -332,7 +339,7 @@
     overflow: hidden;
   }
 
-  /* BOTONES */
+  /* BOTONES ACCIÓN */
   .action-btn {
     width: 36px;
     height: 36px;
@@ -342,20 +349,23 @@
     border-radius: 10px;
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
-    color: white;
+    /* CAMBIO AQUÍ */
+    color: var(--text-main);
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .action-btn:hover {
     background: var(--primary);
-    color: #0f172a;
+    color: #0f172a; /* Texto oscuro sobre fondo brillante siempre es mejor */
     transform: translateY(-2px);
   }
+
   .action-btn.edit:hover {
     background: #3b82f6;
     color: white;
   }
+
   .action-btn.delete:hover {
     background: #ef4444;
     color: white;
@@ -366,8 +376,15 @@
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     border-radius: 12px;
-    color: white;
+    /* CAMBIO AQUÍ */
+    color: var(--text-main);
     cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .refresh-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
   }
 
   .loader {
@@ -378,6 +395,7 @@
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
+
   @keyframes spin {
     to {
       transform: rotate(360deg);

@@ -114,12 +114,14 @@
     padding: 2rem;
     max-width: 1400px;
     margin: 0 auto;
+    /* Aseguramos que el contenedor base use el color de texto del tema */
+    color: var(--text-main);
   }
 
   .header-main {
     display: flex;
     justify-content: space-between;
-    align-items: center; /* Alineación central para equilibrar la cabecera */
+    align-items: center;
     gap: 2rem;
     margin-bottom: 3rem;
   }
@@ -130,18 +132,31 @@
     gap: 1.25rem;
   }
 
+  .title-section h1 {
+    color: var(--text-main);
+    font-size: 1.875rem;
+    font-weight: 800;
+    margin: 0;
+  }
+
+  .title-section p {
+    color: var(--text-muted);
+    margin: 0.25rem 0 0 0;
+  }
+
   .icon-badge {
     background: var(--primary);
-    color: #000;
+    /* Color de icono oscuro para contraste sobre el primario brillante */
+    color: #0f172a; 
     padding: 1rem;
     border-radius: 18px;
-    box-shadow: 0 10px 20px -5px var(--primary);
+    box-shadow: 0 10px 20px -5px rgba(var(--primary-rgb, 0, 210, 255), 0.4);
   }
 
   .controls {
     display: flex;
     align-items: center;
-    gap: 0.75rem; /* Espacio entre el buscador y el botón */
+    gap: 0.75rem;
   }
 
   .search-wrapper {
@@ -149,28 +164,26 @@
     width: 350px;
   }
 
-  .search-icon {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    opacity: 0.5;
-    color: var(--primary);
-  }
-
   .search-wrapper input {
     width: 100%;
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
-    padding: 0.8rem 0.8rem;
+    padding: 0.8rem 1rem;
     border-radius: 14px;
-    color: white;
+    /* CAMBIO: Texto dinámico */
+    color: var(--text-main);
     transition: all 0.3s ease;
+  }
+
+  .search-wrapper input::placeholder {
+    color: var(--text-muted);
+    opacity: 0.7;
   }
 
   .search-wrapper input:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.2);
+    background: rgba(255, 255, 255, 0.05);
   }
 
   .btn-refresh {
@@ -179,8 +192,9 @@
     justify-content: center;
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
-    color: white;
-    width: 46px; /* Altura igualada al input */
+    /* CAMBIO: Icono dinámico */
+    color: var(--text-main);
+    width: 46px;
     height: 46px;
     border-radius: 14px;
     cursor: pointer;
@@ -188,7 +202,7 @@
   }
 
   .btn-refresh:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     border-color: var(--primary);
     color: var(--primary);
   }
@@ -197,18 +211,13 @@
     transform: scale(0.95);
   }
 
-  /* Animación opcional para el icono al cargar */
   :global(.spinning) {
     animation: spin 1s linear infinite;
   }
 
   @keyframes spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
 
   .suppliers-list {
@@ -232,18 +241,9 @@
   }
 
   @keyframes pulse {
-    0% {
-      transform: scale(0.8);
-      opacity: 0.5;
-    }
-    50% {
-      transform: scale(1.2);
-      opacity: 0.2;
-    }
-    100% {
-      transform: scale(0.8);
-      opacity: 0.5;
-    }
+    0% { transform: scale(0.8); opacity: 0.5; }
+    50% { transform: scale(1.2); opacity: 0.2; }
+    100% { transform: scale(0.8); opacity: 0.5; }
   }
 
   .empty-state {

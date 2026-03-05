@@ -89,7 +89,7 @@
 
 <div class="card {editing ? 'is-editing' : ''}">
   <div class="card-header">
-    <div class="identity">
+    <div class="identity" style="flex: 1; margin-right: 1rem;">
       {#if editing}
         <input
           bind:value={editForm.name}
@@ -171,13 +171,6 @@
 </div>
 
 <style>
-  /* Tus estilos se mantienen iguales... */
-  .card.is-editing {
-    color: var(--text-main);
-    border-color: var(--primary);
-    background: rgba(var(--primary-rgb), 0.05);
-  }
-  /* Copia aquí los estilos específicos de la .card que tenías en +page.svelte */
   .card {
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
@@ -189,11 +182,15 @@
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
+    color: var(--text-main);
   }
+
   .card:hover {
     transform: translateY(-4px);
-    border-color: rgba(255, 255, 255, 0.2);
+    border-color: rgba(var(--primary-rgb, 0, 210, 255), 0.4);
   }
+
+  /* Indicador lateral de color primario */
   .card::before {
     content: "";
     position: absolute;
@@ -204,16 +201,35 @@
     background: var(--primary);
     opacity: 0.3;
   }
+
+  .card.is-editing {
+    border-color: var(--primary);
+    background: rgba(var(--primary-rgb, 0, 210, 255), 0.05);
+    box-shadow: 0 0 20px rgba(var(--primary-rgb, 0, 210, 255), 0.15);
+  }
+
   .card-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+    gap: 1.5rem; /* Espacio de seguridad entre texto/input y botones */
   }
+
+  .identity {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 0; /* Permite que el texto trunque si es necesario */
+  }
+
   .name {
     font-size: 1.35rem;
     font-weight: 700;
     color: var(--text-main);
+    margin: 0;
   }
+
   .cif {
     display: flex;
     align-items: center;
@@ -222,35 +238,136 @@
     color: var(--text-muted);
     font-family: monospace;
   }
+
+  /* CONTROLES DE EDICIÓN */
+  .input-inline {
+    background: var(--glass-bg);
+    border: 1px solid var(--primary);
+    border-radius: 10px;
+    color: var(--text-main);
+    padding: 0.6rem 0.8rem;
+    width: 100%;
+    outline: none;
+    box-sizing: border-box;
+    transition: box-shadow 0.2s;
+  }
+
+  .input-inline:focus {
+    box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 0, 210, 255), 0.2);
+  }
+
+  .input-inline.name {
+    font-size: 1.35rem;
+    font-weight: 700;
+  }
+
+  .textarea-inline {
+    width: 100%;
+    background: var(--glass-bg);
+    border: 1px solid var(--primary);
+    color: var(--text-main);
+    font-size: 0.85rem;
+    min-height: 80px;
+    border-radius: 12px;
+    padding: 0.8rem;
+    outline: none;
+    font-family: inherit;
+    resize: vertical;
+    box-sizing: border-box;
+  }
+
+  .input-inline::placeholder,
+  .textarea-inline::placeholder {
+    color: var(--text-muted);
+    opacity: 0.5;
+  }
+
+  /* BOTONES DE ACCIÓN */
+  .actions {
+    display: flex;
+    gap: 0.75rem; /* Separación entre botones para que no se peguen */
+    flex-shrink: 0;
+    padding-top: 0.25rem;
+  }
+
+  .action-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.7rem;
+    cursor: pointer;
+    border-radius: 12px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .action-icon:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+    transform: translateY(-2px);
+  }
+
+  .action-icon.save {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.2);
+  }
+
+  .action-icon.save:hover {
+    background: #10b981;
+    color: white;
+    border-color: #10b981;
+  }
+
+  .action-icon.cancel {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.2);
+  }
+
+  .action-icon.cancel:hover {
+    background: #ef4444;
+    color: white;
+    border-color: #ef4444;
+  }
+
+  .action-icon.delete:hover {
+    background: #ef4444;
+    color: white;
+  }
+
+  /* MÉTRICAS E INTELIGENCIA */
   .card-metrics {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.15);
     border-radius: 16px;
-    padding: 1rem;
+    padding: 1.2rem;
+    gap: 1rem;
   }
-  .metric {
-    display: flex;
-    flex-direction: column;
-  }
+
   .metric .label {
     font-size: 0.65rem;
     text-transform: uppercase;
     color: var(--text-muted);
+    letter-spacing: 0.5px;
   }
+
   .metric .value {
     font-size: 1.1rem;
     font-weight: 700;
+    color: var(--text-main);
   }
-  .metric.highlight .value {
-    color: var(--primary);
-  }
+
   .card-intelligence {
     background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
     border-radius: 16px;
-    padding: 1rem;
+    padding: 1.2rem;
   }
+
   .intelligence-header {
     display: flex;
     align-items: center;
@@ -259,53 +376,14 @@
     font-size: 0.7rem;
     font-weight: 800;
     text-transform: uppercase;
-    margin-bottom: 0.6rem;
+    margin-bottom: 0.8rem;
   }
+
   .notes {
     font-size: 0.85rem;
     line-height: 1.6;
     color: var(--text-muted);
     font-style: italic;
-  }
-  .actions {
-    display: flex;
-    gap: 0.5rem;
-  }
-  .action-icon {
-    padding: 0.6rem;
-    cursor: pointer;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text-muted);
-    transition: all 0.2s;
-    border: none;
-  }
-  .action-icon:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
-  }
-  .action-icon.save {
-    color: #10b981;
-  }
-  .action-icon.delete:hover {
-    color: #ef4444;
-  }
-  .input-inline {
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid var(--primary);
-    border-radius: 8px;
-    color: white;
-    padding: 0.4rem;
-    width: 100%;
-  }
-  .textarea-inline {
-    width: 100%;
-    background: transparent;
-    border: 1px solid var(--primary);
-    color: white;
-    font-size: 0.85rem;
-    min-height: 80px;
-    border-radius: 8px;
-    padding: 0.5rem;
+    margin: 0;
   }
 </style>
